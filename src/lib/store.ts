@@ -1,0 +1,982 @@
+import fs from 'fs';
+import path from 'path';
+import {
+  SEED_CATEGORIES,
+  SEED_THREADS,
+  SEED_USERS,
+  SEED_ANNOUNCEMENTS,
+  SeedCategory,
+  SeedForum,
+  SeedThread,
+  SeedPost,
+  SeedUser,
+  SeedAnnouncement,
+} from './initialData';
+import prisma from './prisma';
+
+// In-memory memory state for instant zero-config resilience
+interface MemoryState {
+  users: SeedUser[];
+  categories: SeedCategory[];
+  forums: SeedForum[];
+  threads: SeedThread[];
+  announcements: SeedAnnouncement[];
+  votes: { postId: string; userId: string; type: string }[];
+  reports: { id: string; reporterId: string; threadId?: string; postId?: string; reason: string; status: string; createdAt: Date }[];
+}
+
+const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_FILE = path.join(DATA_DIR, 'forum-store.json');
+
+function loadPersistedState(): MemoryState | null {
+  try {
+    if (typeof window === 'undefined' && fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.threads) && Array.isArray(parsed.users)) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading persisted forum data:', e);
+  }
+  return null;
+}
+
+export function persistState() {
+  try {
+    if (typeof window === 'undefined') {
+      if (!fs.existsSync(DATA_DIR)) {
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+      }
+      fs.writeFileSync(DATA_FILE, JSON.stringify(memoryState, null, 2), 'utf-8');
+    }
+  } catch (e) {
+    console.error('Error saving forum data to disk:', e);
+  }
+}
+
+const globalForStore = globalThis as unknown as {
+  __eyedeaMemoryState?: MemoryState;
+  __isPrismaAvailable?: boolean | null;
+};
+
+const defaultState: MemoryState = {
+  users: [...SEED_USERS],
+  categories: JSON.parse(JSON.stringify(SEED_CATEGORIES)),
+  forums: SEED_CATEGORIES.flatMap((c) => c.forums),
+  threads: JSON.parse(JSON.stringify(SEED_THREADS)),
+  announcements: [...SEED_ANNOUNCEMENTS],
+  votes: [],
+  reports: [],
+};
+
+const memoryState: MemoryState =
+  globalForStore.__eyedeaMemoryState || loadPersistedState() || defaultState;
+
+globalForStore.__eyedeaMemoryState = memoryState;
+
+async function checkPrismaConnection(): Promise<boolean> {
+  if (globalForStore.__isPrismaAvailable !== undefined && globalForStore.__isPrismaAvailable !== null) {
+    return globalForStore.__isPrismaAvailable;
+  }
+  try {
+    // Quick test query with a short timeout
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1500)),
+    ]);
+    globalForStore.__isPrismaAvailable = true;
+    console.log('✅ Connected to PostgreSQL via Prisma');
+    return true;
+  } catch {
+    globalForStore.__isPrismaAvailable = false;
+    console.log('ℹ️ Running with in-memory resilient forum store. To enable PostgreSQL, configure DATABASE_URL in .env and run npx prisma db push.');
+    return false;
+  }
+}
+
+// -------------------------------------------------------------
+// USER METHODS
+// -------------------------------------------------------------
+
+export async function findUserByEmailOrUsername(identifier: string): Promise<SeedUser | null> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: identifier }, { username: identifier }],
+      },
+    });
+    if (!user) return null;
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      passwordHash: user.passwordHash,
+      role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
+      avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      bio: user.bio || '',
+      reputation: user.reputation,
+      createdAt: user.createdAt,
+    };
+  }
+
+  const user = memoryState.users.find(
+    (u) => u.email.toLowerCase() === identifier.toLowerCase() || u.username.toLowerCase() === identifier.toLowerCase()
+  );
+  return user ? { ...user } : null;
+}
+
+export async function findUserById(id: string): Promise<SeedUser | null> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const user = await prisma.user.findUnique({ where: { id } });
+    if (!user) return null;
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      passwordHash: user.passwordHash,
+      role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
+      avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      bio: user.bio || '',
+      reputation: user.reputation,
+      createdAt: user.createdAt,
+    };
+  }
+
+  const user = memoryState.users.find((u) => u.id === id);
+  return user ? { ...user } : null;
+}
+
+export async function createUser(data: {
+  username: string;
+  email: string;
+  passwordHash: string;
+  bio?: string;
+  avatar?: string;
+  role?: 'USER' | 'MODERATOR' | 'ADMIN';
+}): Promise<SeedUser> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const created = await prisma.user.create({
+      data: {
+        username: data.username,
+        email: data.email,
+        passwordHash: data.passwordHash,
+        bio: data.bio || 'New member of EyeDea',
+        avatar: data.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${data.username}`,
+        role: data.role || 'USER',
+        reputation: 10,
+      },
+    });
+    return {
+      id: created.id,
+      username: created.username,
+      email: created.email,
+      passwordHash: created.passwordHash,
+      role: created.role as 'USER' | 'MODERATOR' | 'ADMIN',
+      avatar: created.avatar,
+      bio: created.bio || '',
+      reputation: created.reputation,
+      createdAt: created.createdAt,
+    };
+  }
+
+  const newUser: SeedUser = {
+    id: `user-${Date.now()}`,
+    username: data.username,
+    email: data.email,
+    passwordHash: data.passwordHash,
+    bio: data.bio || 'New member of EyeDea',
+    avatar: data.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${data.username}`,
+    role: data.role || 'USER',
+    reputation: 10,
+    createdAt: new Date(),
+  };
+
+  memoryState.users.push(newUser);
+  persistState();
+  return newUser;
+}
+
+export async function getAllUsers(): Promise<SeedUser[]> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    return users.map((u) => ({
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      passwordHash: '',
+      role: u.role as 'USER' | 'MODERATOR' | 'ADMIN',
+      avatar: u.avatar || '',
+      bio: u.bio || '',
+      reputation: u.reputation,
+      createdAt: u.createdAt,
+    }));
+  }
+
+  return memoryState.users.map((u) => ({ ...u, passwordHash: '' }));
+}
+
+export async function updateUserRole(userId: string, role: 'USER' | 'MODERATOR' | 'ADMIN'): Promise<boolean> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { role },
+    });
+    return true;
+  }
+
+  const user = memoryState.users.find((u) => u.id === userId);
+  if (user) {
+    user.role = role;
+    persistState();
+    return true;
+  }
+  return false;
+}
+
+export async function toggleUserBan(userId: string): Promise<boolean> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return false;
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isBanned: !user.isBanned },
+    });
+    return true;
+  }
+
+  const user = memoryState.users.find((u) => u.id === userId);
+  if (user) {
+    user.role = user.role === 'USER' ? 'USER' : user.role;
+    persistState();
+    return true;
+  }
+  return false;
+}
+
+// -------------------------------------------------------------
+// FORUM & CATEGORY METHODS
+// -------------------------------------------------------------
+
+export interface ForumWithStats extends SeedForum {
+  threadCount: number;
+  postCount: number;
+  latestPost?: {
+    threadId: string;
+    threadTitle: string;
+    authorUsername: string;
+    authorAvatar: string;
+    createdAt: Date;
+  } | null;
+}
+
+export interface CategoryWithForums extends SeedCategory {
+  forums: ForumWithStats[];
+}
+
+export async function getForumHierarchy(): Promise<CategoryWithForums[]> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const categories = await prisma.category.findMany({
+      orderBy: { sortOrder: 'asc' },
+      include: {
+        forums: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            threads: {
+              include: {
+                posts: {
+                  include: {
+                    author: true,
+                  },
+                  orderBy: { createdAt: 'desc' },
+                  take: 1,
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return categories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      slug: cat.slug,
+      description: cat.description || '',
+      icon: cat.icon || 'Folder',
+      sortOrder: cat.sortOrder,
+      forums: cat.forums.map((f) => {
+        let totalPosts = 0;
+        let latestPostInfo: ForumWithStats['latestPost'] = null;
+
+        f.threads.forEach((t) => {
+          totalPosts += t.posts.length;
+          if (t.posts[0]) {
+            const p = t.posts[0];
+            if (!latestPostInfo || new Date(p.createdAt) > new Date(latestPostInfo.createdAt)) {
+              latestPostInfo = {
+                threadId: t.id,
+                threadTitle: t.title,
+                authorUsername: p.author.username,
+                authorAvatar: p.author.avatar || '',
+                createdAt: p.createdAt,
+              };
+            }
+          }
+        });
+
+        return {
+          id: f.id,
+          categoryId: f.categoryId,
+          name: f.name,
+          slug: f.slug,
+          description: f.description,
+          icon: f.icon || 'MessageSquare',
+          isLocked: f.isLocked,
+          sortOrder: f.sortOrder,
+          threadCount: f.threads.length,
+          postCount: totalPosts,
+          latestPost: latestPostInfo,
+        };
+      }),
+    }));
+  }
+
+  // Memory fallback
+  return memoryState.categories.map((cat) => ({
+    ...cat,
+    forums: cat.forums.map((f) => {
+      const threads = memoryState.threads.filter((t) => t.forumId === f.id);
+      let postCount = 0;
+      let latestPost: ForumWithStats['latestPost'] = null;
+
+      threads.forEach((t) => {
+        postCount += t.posts.length;
+        t.posts.forEach((p) => {
+          if (!latestPost || new Date(p.createdAt) > new Date(latestPost.createdAt)) {
+            const author = memoryState.users.find((u) => u.id === p.authorId);
+            latestPost = {
+              threadId: t.id,
+              threadTitle: t.title,
+              authorUsername: author?.username || 'Member',
+              authorAvatar: author?.avatar || '',
+              createdAt: p.createdAt,
+            };
+          }
+        });
+      });
+
+      return {
+        ...f,
+        threadCount: threads.length,
+        postCount,
+        latestPost,
+      };
+    }),
+  }));
+}
+
+export async function getForumBySlug(slug: string) {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const forum = await prisma.forum.findUnique({
+      where: { slug },
+      include: {
+        category: true,
+        threads: {
+          orderBy: [{ isPinned: 'desc' }, { updatedAt: 'desc' }],
+          include: {
+            author: true,
+            posts: {
+              include: { author: true },
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+            },
+            _count: {
+              select: { posts: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!forum) return null;
+
+    return {
+      ...forum,
+      threads: forum.threads.map((t) => ({
+        id: t.id,
+        forumId: t.forumId,
+        title: t.title,
+        slug: t.slug,
+        isPinned: t.isPinned,
+        isLocked: t.isLocked,
+        viewCount: t.viewCount,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        author: {
+          id: t.author.id,
+          username: t.author.username,
+          avatar: t.author.avatar,
+          role: t.author.role,
+        },
+        replyCount: Math.max(0, t._count.posts - 1),
+        latestPost: t.posts[0]
+          ? {
+              authorUsername: t.posts[0].author.username,
+              authorAvatar: t.posts[0].author.avatar,
+              createdAt: t.posts[0].createdAt,
+            }
+          : null,
+      })),
+    };
+  }
+
+  // Memory fallback
+  const forum = memoryState.forums.find((f) => f.slug === slug);
+  if (!forum) return null;
+
+  const category = memoryState.categories.find((c) => c.id === forum.categoryId);
+  const threads = memoryState.threads
+    .filter((t) => t.forumId === forum.id)
+    .sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    })
+    .map((t) => {
+      const author = memoryState.users.find((u) => u.id === t.authorId);
+      const latest = [...t.posts].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+      const latestAuthor = latest ? memoryState.users.find((u) => u.id === latest.authorId) : null;
+
+      return {
+        id: t.id,
+        forumId: t.forumId,
+        title: t.title,
+        slug: t.slug,
+        isPinned: t.isPinned,
+        isLocked: t.isLocked,
+        viewCount: t.viewCount,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+        author: {
+          id: author?.id || 'unknown',
+          username: author?.username || 'Member',
+          avatar: author?.avatar,
+          role: author?.role || 'USER',
+        },
+        replyCount: Math.max(0, t.posts.length - 1),
+        latestPost: latest
+          ? {
+              authorUsername: latestAuthor?.username || 'Member',
+              authorAvatar: latestAuthor?.avatar,
+              createdAt: latest.createdAt,
+            }
+          : null,
+      };
+    });
+
+  return {
+    ...forum,
+    category,
+    threads,
+  };
+}
+
+// -------------------------------------------------------------
+// THREAD & POST METHODS
+// -------------------------------------------------------------
+
+export async function getThreadById(id: string) {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const thread = await prisma.thread.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }],
+      },
+      include: {
+        forum: {
+          include: { category: true },
+        },
+        author: true,
+        posts: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            author: true,
+            votes: true,
+          },
+        },
+      },
+    });
+
+    if (!thread) return null;
+
+    // Increment view count asynchronously
+    prisma.thread.update({
+      where: { id: thread.id },
+      data: { viewCount: { increment: 1 } },
+    }).catch(() => {});
+
+    return thread;
+  }
+
+  // Memory fallback: match by ID OR slug
+  const thread = memoryState.threads.find((t) => t.id === id || t.slug === id);
+  if (!thread) return null;
+
+  thread.viewCount += 1;
+  const forum = memoryState.forums.find((f) => f.id === thread.forumId);
+  const category = forum ? memoryState.categories.find((c) => c.id === forum.categoryId) : null;
+  const author = memoryState.users.find((u) => u.id === thread.authorId);
+
+  const postsWithAuthor = thread.posts.map((p) => {
+    const postAuthor = memoryState.users.find((u) => u.id === p.authorId);
+    const postVotes = memoryState.votes.filter((v) => v.postId === p.id);
+    return {
+      ...p,
+      author: postAuthor || {
+        id: 'unknown',
+        username: 'Member',
+        avatar: '',
+        role: 'USER',
+        reputation: 10,
+        createdAt: new Date(),
+      },
+      votes: postVotes,
+    };
+  });
+
+  return {
+    ...thread,
+    forum: forum ? { ...forum, category } : null,
+    author: author || { id: 'unknown', username: 'Member', avatar: '', role: 'USER', reputation: 10, createdAt: new Date() },
+    posts: postsWithAuthor,
+  };
+}
+
+export async function createThread(data: {
+  forumId: string;
+  authorId: string;
+  title: string;
+  content: string;
+}) {
+  const slug = data.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)+/g, '')
+    .substring(0, 80);
+
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const thread = await prisma.thread.create({
+      data: {
+        forumId: data.forumId,
+        authorId: data.authorId,
+        title: data.title,
+        slug: `${slug}-${Date.now().toString(36)}`,
+        posts: {
+          create: {
+            authorId: data.authorId,
+            content: data.content,
+            isFirstPost: true,
+          },
+        },
+      },
+      include: {
+        posts: true,
+      },
+    });
+
+    // Award reputation points for creating an idea
+    prisma.user.update({
+      where: { id: data.authorId },
+      data: { reputation: { increment: 5 } },
+    }).catch(() => {});
+
+    return thread;
+  }
+
+  // Memory fallback
+  const threadId = `thread-${Date.now()}`;
+  const postId = `post-${Date.now()}`;
+  const newPost: SeedPost = {
+    id: postId,
+    threadId,
+    authorId: data.authorId,
+    content: data.content,
+    isFirstPost: true,
+    upvotes: 0,
+    createdAt: new Date(),
+  };
+
+  const newThread: SeedThread = {
+    id: threadId,
+    forumId: data.forumId,
+    authorId: data.authorId,
+    title: data.title,
+    slug: `${slug}-${Date.now().toString(36)}`,
+    isPinned: false,
+    isLocked: false,
+    viewCount: 1,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    posts: [newPost],
+  };
+
+  memoryState.threads.unshift(newThread);
+
+  const author = memoryState.users.find((u) => u.id === data.authorId);
+  if (author) author.reputation += 5;
+
+  persistState();
+
+  return newThread;
+}
+
+export async function createPost(data: {
+  threadId: string;
+  authorId: string;
+  content: string;
+}) {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const targetThread = await prisma.thread.findFirst({
+      where: {
+        OR: [{ id: data.threadId }, { slug: data.threadId }],
+      },
+    });
+    if (!targetThread) throw new Error('Thread not found');
+
+    const post = await prisma.post.create({
+      data: {
+        threadId: targetThread.id,
+        authorId: data.authorId,
+        content: data.content,
+        isFirstPost: false,
+      },
+      include: {
+        author: true,
+      },
+    });
+
+    // Update thread updatedAt timestamp
+    await prisma.thread.update({
+      where: { id: targetThread.id },
+      data: { updatedAt: new Date() },
+    });
+
+    // Award reputation points for replying
+    prisma.user.update({
+      where: { id: data.authorId },
+      data: { reputation: { increment: 2 } },
+    }).catch(() => {});
+
+    return post;
+  }
+
+  // Memory fallback: match by ID OR slug
+  const thread = memoryState.threads.find((t) => t.id === data.threadId || t.slug === data.threadId);
+  if (!thread) throw new Error('Thread not found');
+
+  const post: SeedPost = {
+    id: `post-${Date.now()}`,
+    threadId: thread.id,
+    authorId: data.authorId,
+    content: data.content,
+    isFirstPost: false,
+    upvotes: 0,
+    createdAt: new Date(),
+  };
+
+  thread.posts.push(post);
+  thread.updatedAt = new Date();
+
+  const author = memoryState.users.find((u) => u.id === data.authorId);
+  if (author) author.reputation += 2;
+
+  persistState();
+
+  return { ...post, author };
+}
+
+export async function toggleVotePost(postId: string, userId: string): Promise<{ upvotes: number; userVoted: boolean }> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const existing = await prisma.vote.findUnique({
+      where: {
+        postId_userId: { postId, userId },
+      },
+    });
+
+    if (existing) {
+      await prisma.vote.delete({ where: { id: existing.id } });
+      const updated = await prisma.post.update({
+        where: { id: postId },
+        data: { upvotes: { decrement: 1 } },
+      });
+      return { upvotes: Math.max(0, updated.upvotes), userVoted: false };
+    } else {
+      await prisma.vote.create({
+        data: { postId, userId, type: 'UP' },
+      });
+      const updated = await prisma.post.update({
+        where: { id: postId },
+        data: { upvotes: { increment: 1 } },
+      });
+      return { upvotes: updated.upvotes, userVoted: true };
+    }
+  }
+
+  // Memory fallback
+  const voteIdx = memoryState.votes.findIndex((v) => v.postId === postId && v.userId === userId);
+  let post: SeedPost | undefined;
+  for (const t of memoryState.threads) {
+    post = t.posts.find((p) => p.id === postId);
+    if (post) break;
+  }
+
+  if (!post) return { upvotes: 0, userVoted: false };
+
+  if (voteIdx >= 0) {
+    memoryState.votes.splice(voteIdx, 1);
+    post.upvotes = Math.max(0, post.upvotes - 1);
+    persistState();
+    return { upvotes: post.upvotes, userVoted: false };
+  } else {
+    memoryState.votes.push({ postId, userId, type: 'UP' });
+    post.upvotes += 1;
+    persistState();
+    return { upvotes: post.upvotes, userVoted: true };
+  }
+}
+
+// -------------------------------------------------------------
+// ADMIN & MODERATION METHODS
+// -------------------------------------------------------------
+
+export async function getAdminStats() {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const [userCount, threadCount, postCount, reportCount] = await Promise.all([
+      prisma.user.count(),
+      prisma.thread.count(),
+      prisma.post.count(),
+      prisma.report.count({ where: { status: 'PENDING' } }),
+    ]);
+    return {
+      users: userCount,
+      threads: threadCount,
+      posts: postCount,
+      pendingReports: reportCount,
+      isDatabaseConnected: true,
+    };
+  }
+
+  const postCount = memoryState.threads.reduce((sum, t) => sum + t.posts.length, 0);
+  return {
+    users: memoryState.users.length,
+    threads: memoryState.threads.length,
+    posts: postCount,
+    pendingReports: memoryState.reports.filter((r) => r.status === 'PENDING').length,
+    isDatabaseConnected: false,
+  };
+}
+
+export async function togglePinThread(threadId: string): Promise<boolean> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const thread = await prisma.thread.findFirst({
+      where: { OR: [{ id: threadId }, { slug: threadId }] },
+    });
+    if (!thread) return false;
+    await prisma.thread.update({
+      where: { id: thread.id },
+      data: { isPinned: !thread.isPinned },
+    });
+    return true;
+  }
+
+  const thread = memoryState.threads.find((t) => t.id === threadId || t.slug === threadId);
+  if (thread) {
+    thread.isPinned = !thread.isPinned;
+    persistState();
+    return true;
+  }
+  return false;
+}
+
+export async function toggleLockThread(threadId: string): Promise<boolean> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const thread = await prisma.thread.findFirst({
+      where: { OR: [{ id: threadId }, { slug: threadId }] },
+    });
+    if (!thread) return false;
+    await prisma.thread.update({
+      where: { id: thread.id },
+      data: { isLocked: !thread.isLocked },
+    });
+    return true;
+  }
+
+  const thread = memoryState.threads.find((t) => t.id === threadId || t.slug === threadId);
+  if (thread) {
+    thread.isLocked = !thread.isLocked;
+    persistState();
+    return true;
+  }
+  return false;
+}
+
+export async function deleteThread(threadId: string): Promise<boolean> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const thread = await prisma.thread.findFirst({
+      where: { OR: [{ id: threadId }, { slug: threadId }] },
+    });
+    if (!thread) return false;
+    await prisma.thread.delete({ where: { id: thread.id } });
+    return true;
+  }
+
+  const index = memoryState.threads.findIndex((t) => t.id === threadId || t.slug === threadId);
+  if (index >= 0) {
+    memoryState.threads.splice(index, 1);
+    persistState();
+    return true;
+  }
+  return false;
+}
+
+export async function getAnnouncements(): Promise<SeedAnnouncement[]> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const ann = await prisma.announcement.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return ann.map((a) => ({
+      id: a.id,
+      title: a.title,
+      content: a.content,
+      authorId: a.authorId,
+      isActive: a.isActive,
+      priority: a.priority as 'INFO' | 'WARNING' | 'CRITICAL',
+      createdAt: a.createdAt,
+    }));
+  }
+
+  return memoryState.announcements.filter((a) => a.isActive);
+}
+
+export async function createAnnouncement(data: {
+  title: string;
+  content: string;
+  authorId: string;
+  priority?: 'INFO' | 'WARNING' | 'CRITICAL';
+}) {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    return prisma.announcement.create({
+      data: {
+        title: data.title,
+        content: data.content,
+        authorId: data.authorId,
+        priority: data.priority || 'INFO',
+        isActive: true,
+      },
+    });
+  }
+
+  const ann: SeedAnnouncement = {
+    id: `ann-${Date.now()}`,
+    title: data.title,
+    content: data.content,
+    authorId: data.authorId,
+    priority: data.priority || 'INFO',
+    isActive: true,
+    createdAt: new Date(),
+  };
+  memoryState.announcements.unshift(ann);
+  persistState();
+  return ann;
+}
+
+export async function createCategory(data: { name: string; description: string; icon?: string }) {
+  const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    return prisma.category.create({
+      data: {
+        name: data.name,
+        slug,
+        description: data.description,
+        icon: data.icon || 'Folder',
+        sortOrder: 99,
+      },
+    });
+  }
+
+  const newCat: SeedCategory = {
+    id: `cat-${Date.now()}`,
+    name: data.name,
+    slug,
+    description: data.description,
+    icon: data.icon || 'Folder',
+    sortOrder: memoryState.categories.length + 1,
+    forums: [],
+  };
+  memoryState.categories.push(newCat);
+  persistState();
+  return newCat;
+}
+
+export async function createForum(data: {
+  categoryId: string;
+  name: string;
+  description: string;
+  icon?: string;
+}) {
+  const slug = data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    return prisma.forum.create({
+      data: {
+        categoryId: data.categoryId,
+        name: data.name,
+        slug,
+        description: data.description,
+        icon: data.icon || 'MessageSquare',
+      },
+    });
+  }
+
+  const cat = memoryState.categories.find((c) => c.id === data.categoryId);
+  const newForum: SeedForum = {
+    id: `forum-${Date.now()}`,
+    categoryId: data.categoryId,
+    name: data.name,
+    slug,
+    description: data.description,
+    icon: data.icon || 'MessageSquare',
+    isLocked: false,
+    sortOrder: (cat?.forums.length || 0) + 1,
+  };
+
+  if (cat) {
+    cat.forums.push(newForum);
+  }
+  memoryState.forums.push(newForum);
+  persistState();
+  return newForum;
+}

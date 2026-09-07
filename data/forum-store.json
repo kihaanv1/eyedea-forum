@@ -1,0 +1,355 @@
+{
+  "users": [
+    {
+      "id": "user-kihaan",
+      "username": "kihaan",
+      "email": "kihaan@ideasphere.ph",
+      "passwordHash": "$2a$10$VCvsrShGd2av4iUIu6rkZ.oqRkWzuTF3Cn6a8b5MJgQzs22zEjumy",
+      "role": "ADMIN",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "bio": "Platform Owner & Founder of EyeDea.",
+      "reputation": 1018,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "categories": [
+    {
+      "id": "cat-startups",
+      "name": "Ideas, Innovations & Startups",
+      "slug": "startups-innovations",
+      "description": "Brainstorm next-generation products, pitch concepts, and get constructive feedback from builders.",
+      "icon": "Lightbulb",
+      "sortOrder": 1,
+      "forums": [
+        {
+          "id": "forum-pitches",
+          "categoryId": "cat-startups",
+          "name": "Startup Pitches & Idea Validation",
+          "slug": "pitches-validation",
+          "description": "Share your raw concept, value proposition, and get honest critique before writing code.",
+          "icon": "Rocket",
+          "isLocked": false,
+          "sortOrder": 1
+        },
+        {
+          "id": "forum-ai-innovations",
+          "categoryId": "cat-startups",
+          "name": "AI, LLMs & Automation",
+          "slug": "ai-innovations",
+          "description": "Discussions on AI agents, local models, prompt engineering, and intelligent workflows.",
+          "icon": "Bot",
+          "isLocked": false,
+          "sortOrder": 2
+        },
+        {
+          "id": "forum-growth",
+          "categoryId": "cat-startups",
+          "name": "Distribution, Growth & Marketing",
+          "slug": "growth-marketing",
+          "description": "First 100 users, SEO strategies, viral loops, and organic growth playbooks.",
+          "icon": "TrendingUp",
+          "isLocked": false,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "id": "cat-tech",
+      "name": "Development & Engineering",
+      "slug": "development-engineering",
+      "description": "Deep technical discussions, code architectures, best practices, and developer tooling.",
+      "icon": "Terminal",
+      "sortOrder": 2,
+      "forums": [
+        {
+          "id": "forum-web-mobile",
+          "categoryId": "cat-tech",
+          "name": "Web & Mobile Engineering",
+          "slug": "web-mobile-dev",
+          "description": "React, Next.js, TypeScript, Flutter, Tailwind, Node.js, and frontend/backend systems.",
+          "icon": "Code2",
+          "isLocked": false,
+          "sortOrder": 1
+        },
+        {
+          "id": "forum-showcase",
+          "categoryId": "cat-tech",
+          "name": "Project Showcase & Code Review",
+          "slug": "project-showcase",
+          "description": "Show what you built this weekend, link your GitHub repository, and request feedback.",
+          "icon": "Cpu",
+          "isLocked": false,
+          "sortOrder": 2
+        },
+        {
+          "id": "forum-careers",
+          "categoryId": "cat-tech",
+          "name": "Remote Careers & Freelancing",
+          "slug": "careers-freelancing",
+          "description": "Rates, global client communication, contracts, and advancing as a senior engineer.",
+          "icon": "Briefcase",
+          "isLocked": false,
+          "sortOrder": 3
+        }
+      ]
+    },
+    {
+      "id": "cat-creative",
+      "name": "Creative Studio & Product Design",
+      "slug": "creative-design",
+      "description": "UI/UX design, visual storytelling, branding, and content creation.",
+      "icon": "Palette",
+      "sortOrder": 3,
+      "forums": [
+        {
+          "id": "forum-uiux",
+          "categoryId": "cat-creative",
+          "name": "UI/UX & Design Systems",
+          "slug": "ui-ux-design",
+          "description": "Design patterns, component libraries, typography, and human-computer interaction.",
+          "icon": "Layout",
+          "isLocked": false,
+          "sortOrder": 1
+        },
+        {
+          "id": "forum-content",
+          "categoryId": "cat-creative",
+          "name": "Writing & Digital Creation",
+          "slug": "writing-digital-creation",
+          "description": "Technical writing, documentation, newsletters, and visual media crafting.",
+          "icon": "PenTool",
+          "isLocked": false,
+          "sortOrder": 2
+        }
+      ]
+    },
+    {
+      "id": "cat-tambayan",
+      "name": "The Tambayan & Community Lounge",
+      "slug": "community-tambayan",
+      "description": "Casual conversations, welcoming new members, philosophy, and official site announcements.",
+      "icon": "Coffee",
+      "sortOrder": 4,
+      "forums": [
+        {
+          "id": "forum-announcements",
+          "categoryId": "cat-tambayan",
+          "name": "Official Announcements & Rules",
+          "slug": "announcements-rules",
+          "description": "Platform updates, community rules, and guidelines for constructive discussions.",
+          "icon": "Bell",
+          "isLocked": false,
+          "sortOrder": 1
+        },
+        {
+          "id": "forum-introductions",
+          "categoryId": "cat-tambayan",
+          "name": "Welcome & Introductions",
+          "slug": "welcome-intros",
+          "description": "New to EyeDea? Introduce yourself, share what you are passionate about, and say mabuhay!",
+          "icon": "Users",
+          "isLocked": false,
+          "sortOrder": 2
+        },
+        {
+          "id": "forum-chitchat",
+          "categoryId": "cat-tambayan",
+          "name": "General Discussion & Book Club",
+          "slug": "general-discussion",
+          "description": "Casual chit-chat, book recommendations, productivity debates, and philosophical musings.",
+          "icon": "MessageCircle",
+          "isLocked": false,
+          "sortOrder": 3
+        }
+      ]
+    }
+  ],
+  "forums": [
+    {
+      "id": "forum-pitches",
+      "categoryId": "cat-startups",
+      "name": "Startup Pitches & Idea Validation",
+      "slug": "pitches-validation",
+      "description": "Share your raw concept, value proposition, and get honest critique before writing code.",
+      "icon": "Rocket",
+      "isLocked": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "forum-ai-innovations",
+      "categoryId": "cat-startups",
+      "name": "AI, LLMs & Automation",
+      "slug": "ai-innovations",
+      "description": "Discussions on AI agents, local models, prompt engineering, and intelligent workflows.",
+      "icon": "Bot",
+      "isLocked": false,
+      "sortOrder": 2
+    },
+    {
+      "id": "forum-growth",
+      "categoryId": "cat-startups",
+      "name": "Distribution, Growth & Marketing",
+      "slug": "growth-marketing",
+      "description": "First 100 users, SEO strategies, viral loops, and organic growth playbooks.",
+      "icon": "TrendingUp",
+      "isLocked": false,
+      "sortOrder": 3
+    },
+    {
+      "id": "forum-web-mobile",
+      "categoryId": "cat-tech",
+      "name": "Web & Mobile Engineering",
+      "slug": "web-mobile-dev",
+      "description": "React, Next.js, TypeScript, Flutter, Tailwind, Node.js, and frontend/backend systems.",
+      "icon": "Code2",
+      "isLocked": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "forum-showcase",
+      "categoryId": "cat-tech",
+      "name": "Project Showcase & Code Review",
+      "slug": "project-showcase",
+      "description": "Show what you built this weekend, link your GitHub repository, and request feedback.",
+      "icon": "Cpu",
+      "isLocked": false,
+      "sortOrder": 2
+    },
+    {
+      "id": "forum-careers",
+      "categoryId": "cat-tech",
+      "name": "Remote Careers & Freelancing",
+      "slug": "careers-freelancing",
+      "description": "Rates, global client communication, contracts, and advancing as a senior engineer.",
+      "icon": "Briefcase",
+      "isLocked": false,
+      "sortOrder": 3
+    },
+    {
+      "id": "forum-uiux",
+      "categoryId": "cat-creative",
+      "name": "UI/UX & Design Systems",
+      "slug": "ui-ux-design",
+      "description": "Design patterns, component libraries, typography, and human-computer interaction.",
+      "icon": "Layout",
+      "isLocked": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "forum-content",
+      "categoryId": "cat-creative",
+      "name": "Writing & Digital Creation",
+      "slug": "writing-digital-creation",
+      "description": "Technical writing, documentation, newsletters, and visual media crafting.",
+      "icon": "PenTool",
+      "isLocked": false,
+      "sortOrder": 2
+    },
+    {
+      "id": "forum-announcements",
+      "categoryId": "cat-tambayan",
+      "name": "Official Announcements & Rules",
+      "slug": "announcements-rules",
+      "description": "Platform updates, community rules, and guidelines for constructive discussions.",
+      "icon": "Bell",
+      "isLocked": false,
+      "sortOrder": 1
+    },
+    {
+      "id": "forum-introductions",
+      "categoryId": "cat-tambayan",
+      "name": "Welcome & Introductions",
+      "slug": "welcome-intros",
+      "description": "New to EyeDea? Introduce yourself, share what you are passionate about, and say mabuhay!",
+      "icon": "Users",
+      "isLocked": false,
+      "sortOrder": 2
+    },
+    {
+      "id": "forum-chitchat",
+      "categoryId": "cat-tambayan",
+      "name": "General Discussion & Book Club",
+      "slug": "general-discussion",
+      "description": "Casual chit-chat, book recommendations, productivity debates, and philosophical musings.",
+      "icon": "MessageCircle",
+      "isLocked": false,
+      "sortOrder": 3
+    }
+  ],
+  "threads": [
+    {
+      "id": "thread-welcome",
+      "forumId": "forum-announcements",
+      "authorId": "user-kihaan",
+      "title": "📌 Welcome to EyeDea: Platform Philosophy & Community Code of Conduct",
+      "slug": "welcome-eyedea-philosophy-code-of-conduct",
+      "isPinned": true,
+      "isLocked": false,
+      "viewCount": 152,
+      "createdAt": "2026-03-01T08:00:00.000Z",
+      "updatedAt": "2026-09-07T07:02:35.588Z",
+      "posts": [
+        {
+          "id": "post-welcome-1",
+          "threadId": "thread-welcome",
+          "authorId": "user-kihaan",
+          "content": "### Welcome to EyeDea!\n\nFor years, internet culture thrived on classic bulletin boards like PinoyExchange, Symbianize, Mobilarian, and TipidPC. There was something magical about threaded, in-depth discussions with signatures, reputation badges, and thoughtful multi-paragraph exchanges.\n\n**Our Mission:**\nEyeDea is a sanctuary for high-signal ideas. Whether you are building an AI SaaS, debating startup economics, learning Next.js, or sharing book notes, this forum is built for you.\n\n#### The Golden Rules:\n1. **Focus on High-Signal Discussion**: Provide substance. If you disagree, attack the argument, never the person.\n2. **Strictly Clean**: No adult content, piracy, or toxic personal attacks.\n3. **Encourage Collaborations**: If someone shares a nascent idea, give constructive feedback or offer to test their prototype.\n\nStart a discussion or drop a reply below!",
+          "isFirstPost": true,
+          "upvotes": 1,
+          "createdAt": "2026-03-01T08:00:00.000Z"
+        },
+        {
+          "id": "post-1788764555588",
+          "threadId": "thread-welcome",
+          "authorId": "user-kihaan",
+          "content": "Replying using thread slug directly!",
+          "isFirstPost": false,
+          "upvotes": 0,
+          "createdAt": "2026-09-07T07:02:35.588Z"
+        }
+      ]
+    },
+    {
+      "id": "thread-startup-pitch",
+      "forumId": "forum-pitches",
+      "authorId": "user-kihaan",
+      "title": "💡 Idea Validation: An open-source payroll & tax calculator tailored for PH freelancers",
+      "slug": "idea-validation-payroll-tax-calculator-ph-freelancers",
+      "isPinned": false,
+      "isLocked": false,
+      "viewCount": 45,
+      "createdAt": "2026-03-02T14:15:00.000Z",
+      "updatedAt": "2026-03-02T14:15:00.000Z",
+      "posts": [
+        {
+          "id": "post-pitch-1",
+          "threadId": "thread-startup-pitch",
+          "authorId": "user-kihaan",
+          "content": "Hey fellow builders!\n\nI have been exploring an idea for Filipino freelancers and remote contractors:\n\n**The Concept:**\nA sleek, lightweight web app (Next.js + PWA) that:\n1. Lets freelancers log invoice income in USD/PHP with automatic exchange rates.\n2. Automatically generates tax computation estimates under the 8% preferential BIR rate.\n3. Exports pre-filled values ready to copy-paste into eBIRForms.\n4. Privacy-first: 100% client-side encrypted or local SQLite/IndexedDB so users own their financial data.\n\nWould love feedback from fellow developers and freelancers!",
+          "isFirstPost": true,
+          "upvotes": 1,
+          "createdAt": "2026-03-02T14:15:00.000Z"
+        }
+      ]
+    }
+  ],
+  "announcements": [
+    {
+      "id": "ann-1",
+      "title": "🚀 Welcome to EyeDea! Official launch by @kihaan",
+      "content": "Mabuhay! Welcome to EyeDea—a clean bulletin-board forum community built for sharing intellectual ideas, tech developments, creative work, and startup brainstorming. Check out our Community Guidelines before posting!",
+      "authorId": "user-kihaan",
+      "isActive": true,
+      "priority": "INFO",
+      "createdAt": "2026-03-01T00:00:00.000Z"
+    }
+  ],
+  "votes": [
+    {
+      "postId": "post-1788764749611",
+      "userId": "user-kihaan",
+      "type": "UP"
+    }
+  ],
+  "reports": []
+}

@@ -1,0 +1,131 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  username     String         @unique
+  email        String         @unique
+  passwordHash String
+  role         String         @default("USER") // USER, MODERATOR, ADMIN
+  avatar       String?
+  bio          String?
+  reputation   Int            @default(10)
+  isBanned     Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  threads       Thread[]
+  posts         Post[]
+  votes         Vote[]
+  reports       Report[]
+  announcements Announcement[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?  @default("Folder")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  forums Forum[]
+}
+
+model Forum {
+  id          String   @id @default(cuid())
+  categoryId  String
+  name        String
+  slug        String   @unique
+  description String
+  icon        String?  @default("MessageSquare")
+  isLocked    Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  threads  Thread[]
+}
+
+model Thread {
+  id        String   @id @default(cuid())
+  forumId   String
+  authorId  String
+  title     String
+  slug      String
+  isPinned  Boolean  @default(false)
+  isLocked  Boolean  @default(false)
+  viewCount Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  forum   Forum    @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  posts   Post[]
+  reports Report[]
+}
+
+model Post {
+  id          String   @id @default(cuid())
+  threadId    String
+  authorId    String
+  content     String
+  isFirstPost Boolean  @default(false)
+  upvotes     Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  thread  Thread   @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author  User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  votes   Vote[]
+  reports Report[]
+}
+
+model Vote {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  type      String   @default("UP") // UP, DOWN
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  content   String
+  authorId  String
+  isActive  Boolean  @default(true)
+  priority  String   @default("NORMAL") // INFO, WARNING, CRITICAL
+  createdAt DateTime @default(now())
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id         String   @id @default(cuid())
+  reporterId String
+  threadId   String?
+  postId     String?
+  reason     String
+  status     String   @default("PENDING") // PENDING, RESOLVED, DISMISSED
+  createdAt  DateTime @default(now())
+
+  reporter User    @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  thread   Thread? @relation(fields: [threadId], references: [id], onDelete: SetNull)
+  post     Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+}
