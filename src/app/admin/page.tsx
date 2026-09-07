@@ -102,7 +102,6 @@ export default function AdminDashboardPage() {
   const [editAvatar, setEditAvatar] = useState('');
   const [editBio, setEditBio] = useState('');
   const [editRole, setEditRole] = useState<'USER' | 'MODERATOR' | 'ADMIN'>('USER');
-  const [editReputation, setEditReputation] = useState(10);
   const [editIsBanned, setEditIsBanned] = useState(false);
   const [editWebsite, setEditWebsite] = useState('');
   const [editLocation, setEditLocation] = useState('');
@@ -295,7 +294,6 @@ export default function AdminDashboardPage() {
     setEditAvatar(u.avatar || '');
     setEditBio(u.bio || '');
     setEditRole(u.role);
-    setEditReputation(u.reputation);
     setEditIsBanned(!!u.isBanned);
     setEditWebsite(u.website || '');
     setEditLocation(u.location || '');
@@ -354,7 +352,6 @@ export default function AdminDashboardPage() {
           avatar: finalAvatar,
           bio: editBio,
           role: editRole,
-          reputation: editReputation,
           isBanned: editIsBanned,
           website: editWebsite,
           location: editLocation,
@@ -976,13 +973,16 @@ export default function AdminDashboardPage() {
               {/* Reputation & Ban Status */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">Reputation Score</label>
-                  <input
-                    type="number"
-                    value={editReputation}
-                    onChange={(e) => setEditReputation(parseInt(e.target.value, 10) || 0)}
-                    className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
-                  />
+                  <label className="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                    <span>Reputation Score</span>
+                    <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Activity-Based
+                    </span>
+                  </label>
+                  <div className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs flex items-center justify-between">
+                    <span className="font-extrabold text-indigo-300">{editingUser.reputation} pts</span>
+                    <span className="text-[10px] text-slate-500">Earned via posts & reactions</span>
+                  </div>
                 </div>
 
                 <div>

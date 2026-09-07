@@ -148,9 +148,19 @@ export default function ThreadViewPage() {
         setVotedPosts((prev) => ({ ...prev, [postId]: data.userVoted }));
         setThread({
           ...thread,
-          posts: thread.posts.map((p) =>
-            p.id === postId ? { ...p, upvotes: data.upvotes } : p
-          ),
+          posts: thread.posts.map((p) => {
+            if (p.id === postId) {
+              const updatedAuthor =
+                data.authorReputation !== undefined && p.author.id === data.authorId
+                  ? { ...p.author, reputation: data.authorReputation }
+                  : p.author;
+              return { ...p, upvotes: data.upvotes, author: updatedAuthor };
+            }
+            if (data.authorId && p.author.id === data.authorId && data.authorReputation !== undefined) {
+              return { ...p, author: { ...p.author, reputation: data.authorReputation } };
+            }
+            return p;
+          }),
         });
       }
     } catch (err) {

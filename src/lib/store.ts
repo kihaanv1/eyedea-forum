@@ -286,7 +286,6 @@ export async function adminUpdateUser(
     avatar?: string;
     bio?: string;
     role?: 'USER' | 'MODERATOR' | 'ADMIN';
-    reputation?: number;
     isBanned?: boolean;
     website?: string;
     location?: string;
@@ -315,7 +314,6 @@ export async function adminUpdateUser(
         ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
         ...(data.bio !== undefined ? { bio: data.bio } : {}),
         ...(data.role ? { role: data.role } : {}),
-        ...(data.reputation !== undefined ? { reputation: data.reputation } : {}),
         ...(data.isBanned !== undefined ? { isBanned: data.isBanned } : {}),
       },
     });
@@ -326,7 +324,6 @@ export async function adminUpdateUser(
       if (data.avatar !== undefined) mem.avatar = data.avatar;
       if (data.bio !== undefined) mem.bio = data.bio;
       if (data.role) mem.role = data.role;
-      if (data.reputation !== undefined) mem.reputation = data.reputation;
       if (data.isBanned !== undefined) mem.isBanned = data.isBanned;
       if (data.website !== undefined) mem.website = data.website;
       if (data.location !== undefined) mem.location = data.location;
@@ -377,7 +374,6 @@ export async function adminUpdateUser(
   if (data.avatar !== undefined) user.avatar = data.avatar;
   if (data.bio !== undefined) user.bio = data.bio;
   if (data.role) user.role = data.role;
-  if (data.reputation !== undefined) user.reputation = data.reputation;
   if (data.isBanned !== undefined) user.isBanned = data.isBanned;
   if (data.website !== undefined) user.website = data.website;
   if (data.location !== undefined) user.location = data.location;
@@ -1015,9 +1011,18 @@ export async function createPost(data: {
   return { ...post, author };
 }
 
-export async function toggleVotePost(postId: string, userId: string): Promise<{ upvotes: number; userVoted: boolean }> {
+export async function toggleVotePost(
+  postId: string,
+  userId: string
+): Promise<{ upvotes: number; userVoted: boolean; authorId?: string; authorReputation?: number }> {
   const usePrisma = await checkPrismaConnection();
   if (usePrisma) {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, authorId: true, upvotes: true },
+    });
+    if (!post) return { upvotes: 0, userVoted: false };
+
     const existing = await prisma.vote.findUnique({
       where: {
         postId_userId: { postId, userId },
@@ -1030,7 +1035,29 @@ export async function toggleVotePost(postId: string, userId: string): Promise<{ 
         where: { id: postId },
         data: { upvotes: { decrement: 1 } },
       });
-      return { upvotes: Math.max(0, updated.upvotes), userVoted: false };
+
+      let authorRep: number | undefined;
+      // Deduct reputation if reaction is removed by another member
+      if (post.authorId !== userId) {
+        const updatedAuthor = await prisma.user.update({
+          where: { id: post.authorId },
+          data: { reputation: { decrement: 5 } },
+        });
+        authorRep = updatedAuthor.reputation;
+
+        const memAuthor = memoryState.users.find((u) => u.id === post.authorId);
+        if (memAuthor) {
+          memAuthor.reputation = Math.max(0, memAuthor.reputation - 5);
+          persistState();
+        }
+      }
+
+      return {
+        upvotes: Math.max(0, updated.upvotes),
+        userVoted: false,
+        authorId: post.authorId,
+        authorReputation: authorRep,
+      };
     } else {
       await prisma.vote.create({
         data: { postId, userId, type: 'UP' },
@@ -1039,7 +1066,29 @@ export async function toggleVotePost(postId: string, userId: string): Promise<{ 
         where: { id: postId },
         data: { upvotes: { increment: 1 } },
       });
-      return { upvotes: updated.upvotes, userVoted: true };
+
+      let authorRep: number | undefined;
+      // Award reputation to author when someone reacts to their post
+      if (post.authorId !== userId) {
+        const updatedAuthor = await prisma.user.update({
+          where: { id: post.authorId },
+          data: { reputation: { increment: 5 } },
+        });
+        authorRep = updatedAuthor.reputation;
+
+        const memAuthor = memoryState.users.find((u) => u.id === post.authorId);
+        if (memAuthor) {
+          memAuthor.reputation += 5;
+          persistState();
+        }
+      }
+
+      return {
+        upvotes: updated.upvotes,
+        userVoted: true,
+        authorId: post.authorId,
+        authorReputation: authorRep,
+      };
     }
   }
 
@@ -1053,16 +1102,34 @@ export async function toggleVotePost(postId: string, userId: string): Promise<{ 
 
   if (!post) return { upvotes: 0, userVoted: false };
 
+  const postAuthor = memoryState.users.find((u) => u.id === post.authorId);
+
   if (voteIdx >= 0) {
     memoryState.votes.splice(voteIdx, 1);
     post.upvotes = Math.max(0, post.upvotes - 1);
+    if (post.authorId !== userId && postAuthor) {
+      postAuthor.reputation = Math.max(0, postAuthor.reputation - 5);
+    }
     persistState();
-    return { upvotes: post.upvotes, userVoted: false };
+    return {
+      upvotes: post.upvotes,
+      userVoted: false,
+      authorId: post.authorId,
+      authorReputation: postAuthor?.reputation,
+    };
   } else {
     memoryState.votes.push({ postId, userId, type: 'UP' });
     post.upvotes += 1;
+    if (post.authorId !== userId && postAuthor) {
+      postAuthor.reputation += 5;
+    }
     persistState();
-    return { upvotes: post.upvotes, userVoted: true };
+    return {
+      upvotes: post.upvotes,
+      userVoted: true,
+      authorId: post.authorId,
+      authorReputation: postAuthor?.reputation,
+    };
   }
 }
 

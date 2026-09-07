@@ -50,7 +50,6 @@ export async function PATCH(req: Request) {
         avatar,
         bio,
         role: newRole,
-        reputation,
         isBanned,
         website,
         location,
@@ -72,17 +71,11 @@ export async function PATCH(req: Request) {
         }
       }
 
-      const repNumber = reputation !== undefined ? parseInt(reputation, 10) : undefined;
-      if (repNumber !== undefined && isNaN(repNumber)) {
-        return NextResponse.json({ error: 'Reputation must be a valid number' }, { status: 400 });
-      }
-
       const res = await adminUpdateUser(userId, {
         username: username?.trim(),
         avatar: avatar !== undefined ? (typeof avatar === 'string' ? avatar.trim() : '') : undefined,
         bio: bio !== undefined ? (typeof bio === 'string' ? bio.trim().slice(0, 300) : '') : undefined,
         role: newRole,
-        reputation: repNumber,
         isBanned: isBanned !== undefined ? Boolean(isBanned) : undefined,
         website: website !== undefined ? (typeof website === 'string' ? website.trim() : '') : undefined,
         location: location !== undefined ? (typeof location === 'string' ? location.trim().slice(0, 80) : '') : undefined,
