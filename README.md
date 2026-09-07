@@ -1,6 +1,6 @@
 # 💡 EyeDea — Discussion & Idea-Sharing Forum
 
-A full-stack, high-performance community bulletin board inspired by the layout and UX of classic online forums (like `nsfwph.org`, Symbianize, PinoyExchange, and TipidPC), re-imagined as a **clean, intellectual sanctuary** where developers, innovators, startup founders, and creators share ideas, discuss architectures, validate concepts, and collaborate.
+A full-stack, high-performance community bulletin board inspired by the layout and UX of classic online forums (like `, Symbianize, PinoyExchange, and TipidPC), re-imagined as a **clean, intellectual sanctuary** where developers, innovators, startup founders, and creators share ideas, discuss architectures, validate concepts, and collaborate.
 
 ---
 
