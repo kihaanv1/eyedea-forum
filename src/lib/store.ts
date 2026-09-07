@@ -171,6 +171,23 @@ export async function createUser(data: {
         reputation: 10,
       },
     });
+
+    const memUser: SeedUser = {
+      id: created.id,
+      username: created.username,
+      email: created.email,
+      passwordHash: created.passwordHash,
+      role: created.role as 'USER' | 'MODERATOR' | 'ADMIN',
+      avatar: created.avatar || '',
+      bio: created.bio || '',
+      reputation: created.reputation,
+      createdAt: created.createdAt,
+    };
+    if (!memoryState.users.some((u) => u.id === created.id)) {
+      memoryState.users.push(memUser);
+      persistState();
+    }
+
     return {
       id: created.id,
       username: created.username,
@@ -318,19 +335,32 @@ export async function adminUpdateUser(
       },
     });
 
-    const mem = memoryState.users.find((u) => u.id === userId);
-    if (mem) {
-      if (data.username) mem.username = data.username;
-      if (data.avatar !== undefined) mem.avatar = data.avatar;
-      if (data.bio !== undefined) mem.bio = data.bio;
-      if (data.role) mem.role = data.role;
-      if (data.isBanned !== undefined) mem.isBanned = data.isBanned;
-      if (data.website !== undefined) mem.website = data.website;
-      if (data.location !== undefined) mem.location = data.location;
-      if (data.github !== undefined) mem.github = data.github;
-      if (data.twitter !== undefined) mem.twitter = data.twitter;
-      persistState();
+    let mem = memoryState.users.find((u) => u.id === userId);
+    if (!mem) {
+      mem = {
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        passwordHash: updated.passwordHash,
+        role: updated.role as 'USER' | 'MODERATOR' | 'ADMIN',
+        avatar: updated.avatar || '',
+        bio: updated.bio || '',
+        reputation: updated.reputation,
+        isBanned: updated.isBanned,
+        createdAt: updated.createdAt,
+      };
+      memoryState.users.push(mem);
     }
+    if (data.username) mem.username = data.username;
+    if (data.avatar !== undefined) mem.avatar = data.avatar;
+    if (data.bio !== undefined) mem.bio = data.bio;
+    if (data.role) mem.role = data.role;
+    if (data.isBanned !== undefined) mem.isBanned = data.isBanned;
+    if (data.website !== undefined) mem.website = data.website;
+    if (data.location !== undefined) mem.location = data.location;
+    if (data.github !== undefined) mem.github = data.github;
+    if (data.twitter !== undefined) mem.twitter = data.twitter;
+    persistState();
 
     return {
       success: true,
@@ -425,22 +455,35 @@ export async function updateUserProfile(
       },
     });
 
-    const mem = memoryState.users.find((u) => u.id === userId);
-    if (mem) {
-      if (data.username) mem.username = data.username;
-      if (data.avatar !== undefined) mem.avatar = data.avatar;
-      if (data.bio !== undefined) mem.bio = data.bio;
-      if (data.passwordHash) mem.passwordHash = data.passwordHash;
-      if (data.website !== undefined) mem.website = data.website;
-      if (data.location !== undefined) mem.location = data.location;
-      if (data.github !== undefined) mem.github = data.github;
-      if (data.twitter !== undefined) mem.twitter = data.twitter;
-      if (data.themePreference !== undefined) mem.themePreference = data.themePreference;
-      if (data.notifyReplies !== undefined) mem.notifyReplies = data.notifyReplies;
-      if (data.notifyMentions !== undefined) mem.notifyMentions = data.notifyMentions;
-      if (data.showOnlineStatus !== undefined) mem.showOnlineStatus = data.showOnlineStatus;
-      persistState();
+    let mem = memoryState.users.find((u) => u.id === userId);
+    if (!mem) {
+      mem = {
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        passwordHash: updated.passwordHash,
+        role: updated.role as 'USER' | 'MODERATOR' | 'ADMIN',
+        avatar: updated.avatar || '',
+        bio: updated.bio || '',
+        reputation: updated.reputation,
+        isBanned: updated.isBanned,
+        createdAt: updated.createdAt,
+      };
+      memoryState.users.push(mem);
     }
+    if (data.username) mem.username = data.username;
+    if (data.avatar !== undefined) mem.avatar = data.avatar;
+    if (data.bio !== undefined) mem.bio = data.bio;
+    if (data.passwordHash) mem.passwordHash = data.passwordHash;
+    if (data.website !== undefined) mem.website = data.website;
+    if (data.location !== undefined) mem.location = data.location;
+    if (data.github !== undefined) mem.github = data.github;
+    if (data.twitter !== undefined) mem.twitter = data.twitter;
+    if (data.themePreference !== undefined) mem.themePreference = data.themePreference;
+    if (data.notifyReplies !== undefined) mem.notifyReplies = data.notifyReplies;
+    if (data.notifyMentions !== undefined) mem.notifyMentions = data.notifyMentions;
+    if (data.showOnlineStatus !== undefined) mem.showOnlineStatus = data.showOnlineStatus;
+    persistState();
 
     return {
       success: true,
@@ -498,7 +541,7 @@ export async function updateUserProfile(
 }
 
 export async function getUserProfileWithStats(userId: string) {
-  const mem = memoryState.users.find((u) => u.id === userId);
+  let mem = memoryState.users.find((u) => u.id === userId);
   const usePrisma = await checkPrismaConnection();
   if (usePrisma) {
     const user = await prisma.user.findUnique({
@@ -510,6 +553,24 @@ export async function getUserProfileWithStats(userId: string) {
       },
     });
     if (!user) return null;
+
+    if (!mem) {
+      mem = {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        passwordHash: user.passwordHash,
+        role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
+        avatar: user.avatar || '',
+        bio: user.bio || '',
+        reputation: user.reputation,
+        isBanned: user.isBanned,
+        createdAt: user.createdAt,
+      };
+      memoryState.users.push(mem);
+      persistState();
+    }
+
     return {
       id: user.id,
       username: user.username,

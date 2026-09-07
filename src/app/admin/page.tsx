@@ -342,21 +342,26 @@ export default function AdminDashboardPage() {
         finalAvatar = upData.avatarUrl;
       }
 
+      let cleanWebsite = editWebsite.trim();
+      if (cleanWebsite && !cleanWebsite.startsWith('http://') && !cleanWebsite.startsWith('https://')) {
+        cleanWebsite = `https://${cleanWebsite}`;
+      }
+
       const res = await fetch('/api/admin/users', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: editingUser.id,
           action: 'updateUserSettings',
-          username: editUsername,
+          username: editUsername.trim(),
           avatar: finalAvatar,
-          bio: editBio,
+          bio: editBio.trim(),
           role: editRole,
           isBanned: editIsBanned,
-          website: editWebsite,
-          location: editLocation,
-          github: editGithub,
-          twitter: editTwitter,
+          website: cleanWebsite,
+          location: editLocation.trim(),
+          github: editGithub.trim(),
+          twitter: editTwitter.trim(),
         }),
       });
 
@@ -857,7 +862,7 @@ export default function AdminDashboardPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveUserSettings} className="space-y-4">
+            <form onSubmit={handleSaveUserSettings} noValidate className="space-y-4">
               {/* Avatar Section */}
               <div className="p-4 rounded-xl bg-[#141b2f] border border-[#232e4d] space-y-3">
                 <div className="flex items-center justify-between">
@@ -1030,10 +1035,10 @@ export default function AdminDashboardPage() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1">Website</label>
                   <input
-                    type="url"
+                    type="text"
                     value={editWebsite}
                     onChange={(e) => setEditWebsite(e.target.value)}
-                    placeholder="https://..."
+                    placeholder="https://... or domain.com"
                     className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
                   />
                 </div>

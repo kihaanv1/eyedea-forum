@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { getAllUsers } from '@/lib/store';
 import { RoleBadge, ReputationBadge } from '@/components/Badge';
-import { Users, Award, Calendar, ArrowLeft, MapPin, Globe } from 'lucide-react';
+import { Users, Award, Calendar, ArrowLeft, MapPin, Globe, Settings } from 'lucide-react';
 
 export const revalidate = 0;
 
@@ -13,9 +13,17 @@ export default async function MembersPage() {
 
   return (
     <div className="space-y-6">
-      <Link href="/" className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white transition">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to Forums
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/" className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white transition">
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Forums
+        </Link>
+        <Link
+          href="/settings"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition"
+        >
+          <Settings className="w-3.5 h-3.5" /> Edit My Profile & Avatar
+        </Link>
+      </div>
 
       <div className="rounded-xl bg-[#111728] border border-[#1f293e] p-6 shadow-lg flex items-center justify-between">
         <div>

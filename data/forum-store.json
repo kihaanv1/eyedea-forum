@@ -8,12 +8,55 @@
       "role": "ADMIN",
       "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
       "bio": "EyeDea Platform Founder with verified settings.",
-      "reputation": 1250,
+      "reputation": 1257,
       "createdAt": "2026-01-01T00:00:00.000Z",
       "website": "https://ideasphere.ph",
       "location": "BGC, Taguig, PH",
       "github": "kihaan",
       "twitter": "kihaan_dev",
+      "themePreference": "midnight",
+      "notifyReplies": true,
+      "notifyMentions": true,
+      "showOnlineStatus": true
+    },
+    {
+      "id": "user-1788769009708",
+      "username": "thinker_mtqyvt0g",
+      "email": "builder_1788769009312@eyedea.ph",
+      "passwordHash": "$2a$10$GPflVLgH0M33aD2pAxigp.SAkF9aNqqvbf2zErSVQ8F6WD6SR2HFW",
+      "bio": "Verified thinker",
+      "avatar": "https://api.dicebear.com/7.x/identicon/svg?seed=thinker_mtqyvt0g",
+      "role": "USER",
+      "reputation": 10,
+      "createdAt": "2026-09-07T08:16:49.708Z"
+    },
+    {
+      "id": "user-1788769590030",
+      "username": "member_9790",
+      "email": "member_1788769589790@ideasphere.ph",
+      "passwordHash": "$2a$10$NlG/KkLr6GJ1CbRtZA78keGjJCl0Qk9VIncdZmxTaqou/sHHgWsDS",
+      "bio": "I am an active community member!",
+      "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150",
+      "role": "USER",
+      "reputation": 10,
+      "createdAt": "2026-09-07T08:26:30.030Z",
+      "website": "https://mywebsite.com",
+      "location": "Cebu, Philippines"
+    },
+    {
+      "id": "user-1788769919454",
+      "username": "dev_8655_pro",
+      "email": "testuser_1788769918655@ideasphere.ph",
+      "passwordHash": "$2a$10$KFab.cVhJHb6UMV1hqVZseQvlraERm8Iks7ZZfzmlWGNR.MLuyMOK",
+      "bio": "Bio updated by administrator.",
+      "avatar": "",
+      "role": "USER",
+      "reputation": 10,
+      "createdAt": "2026-09-07T08:31:59.455Z",
+      "website": "ideasphere.ph",
+      "location": "Cebu, PH",
+      "github": "mydevhandle",
+      "twitter": "mydevtwitter",
       "themePreference": "midnight",
       "notifyReplies": true,
       "notifyMentions": true,
@@ -286,6 +329,38 @@
   ],
   "threads": [
     {
+      "id": "thread-1788769006823",
+      "forumId": "forum-pitches",
+      "authorId": "user-kihaan",
+      "title": "Decentralized Micro-Grant Network 1788769006532",
+      "slug": "decentralized-micro-grant-network-1788769006532-mtqyvr3b",
+      "isPinned": false,
+      "isLocked": false,
+      "viewCount": 2,
+      "createdAt": "2026-09-07T08:16:46.823Z",
+      "updatedAt": "2026-09-07T08:16:48.335Z",
+      "posts": [
+        {
+          "id": "post-1788769006823",
+          "threadId": "thread-1788769006823",
+          "authorId": "user-kihaan",
+          "content": "A proposal for merit-based peer funding in developer ecosystems.",
+          "isFirstPost": true,
+          "upvotes": 1,
+          "createdAt": "2026-09-07T08:16:46.823Z"
+        },
+        {
+          "id": "post-1788769008335",
+          "threadId": "thread-1788769006823",
+          "authorId": "user-kihaan",
+          "content": "Adding supplementary notes on governance tokens and quadratic voting.",
+          "isFirstPost": false,
+          "upvotes": 0,
+          "createdAt": "2026-09-07T08:16:48.335Z"
+        }
+      ]
+    },
+    {
       "id": "thread-welcome",
       "forumId": "forum-announcements",
       "authorId": "user-kihaan",
@@ -355,6 +430,11 @@
   "votes": [
     {
       "postId": "post-1788764749611",
+      "userId": "user-kihaan",
+      "type": "UP"
+    },
+    {
+      "postId": "post-1788769006823",
       "userId": "user-kihaan",
       "type": "UP"
     }

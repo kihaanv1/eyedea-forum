@@ -56,17 +56,21 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
-    await mkdir(uploadDir, { recursive: true });
-
-    const safeFilename = `avatar-${targetUserId}-${Date.now()}.${extension}`;
-    const filePath = path.join(uploadDir, safeFilename);
-
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
 
-    const avatarUrl = `/uploads/avatars/${safeFilename}`;
+    let avatarUrl = '';
+    try {
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'avatars');
+      await mkdir(uploadDir, { recursive: true });
+      const safeFilename = `avatar-${targetUserId}-${Date.now()}.${extension}`;
+      const filePath = path.join(uploadDir, safeFilename);
+      await writeFile(filePath, buffer);
+      avatarUrl = `/uploads/avatars/${safeFilename}`;
+    } catch (fsErr) {
+      console.warn('Filesystem avatar write failed, falling back to base64 data URI:', fsErr);
+      avatarUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+    }
 
     const updateResult = await updateUserProfile(targetUserId, { avatar: avatarUrl });
     if (!updateResult.success || !updateResult.user) {

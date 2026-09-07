@@ -303,11 +303,28 @@ export default function ProfileSettingsPage() {
         setFilePreview(null);
       }
 
+      let cleanUsername = username.trim();
+      if (!cleanUsername) {
+        setErrorMessage('Username cannot be empty.');
+        setIsSaving(false);
+        return;
+      }
+      if (cleanUsername.length < 3 || cleanUsername.length > 25) {
+        setErrorMessage('Username must be between 3 and 25 characters.');
+        setIsSaving(false);
+        return;
+      }
+
+      let cleanWebsite = website.trim();
+      if (cleanWebsite && !cleanWebsite.startsWith('http://') && !cleanWebsite.startsWith('https://')) {
+        cleanWebsite = `https://${cleanWebsite}`;
+      }
+
       const payload: any = {
-        username: username.trim(),
+        username: cleanUsername,
         avatar: currentAvatar,
         bio: bio.trim(),
-        website: website.trim(),
+        website: cleanWebsite,
         location: location.trim(),
         github: github.trim(),
         twitter: twitter.trim(),
@@ -385,7 +402,36 @@ export default function ProfileSettingsPage() {
     );
   }
 
-  if (!profile) return null;
+  if (!profile) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-[#111728] border border-rose-500/30 rounded-2xl p-6 text-center space-y-4 shadow-xl">
+          <div className="w-12 h-12 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto border border-rose-500/30">
+            <AlertCircle className="w-6 h-6" />
+          </div>
+          <h2 className="text-base font-bold text-white">Profile Unavailable</h2>
+          <p className="text-xs text-slate-400">
+            {errorMessage || 'Unable to load your member profile settings. Please make sure you are logged in.'}
+          </p>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={fetchProfile}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition"
+            >
+              Retry
+            </button>
+            <Link
+              href="/login?redirect=/settings"
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+            >
+              Log In
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
@@ -541,7 +587,7 @@ export default function ProfileSettingsPage() {
       />
 
       {/* Main Settings Content */}
-      <form onSubmit={handleProfileSubmit}>
+      <form onSubmit={handleProfileSubmit} noValidate>
         {activeTab === 'profile' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left 2 Columns: Profile & Avatar Controls */}
@@ -691,7 +737,7 @@ export default function ProfileSettingsPage() {
                     </label>
                     <div className="relative">
                       <input
-                        type="url"
+                        type="text"
                         value={customAvatarUrl}
                         onChange={(e) => handleCustomAvatarChange(e.target.value)}
                         placeholder="https://example.com/avatar.jpg"
@@ -777,10 +823,10 @@ export default function ProfileSettingsPage() {
                     <div className="relative">
                       <Globe className="w-4 h-4 text-slate-500 absolute left-3.5 top-2.5" />
                       <input
-                        type="url"
+                        type="text"
                         value={website}
                         onChange={(e) => setWebsite(e.target.value)}
-                        placeholder="https://mywebsite.com"
+                        placeholder="https://mywebsite.com or mywebsite.com"
                         className="w-full bg-[#161f36] border border-[#24304f] focus:border-indigo-500 rounded-xl pl-10 pr-3.5 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none transition"
                       />
                     </div>
