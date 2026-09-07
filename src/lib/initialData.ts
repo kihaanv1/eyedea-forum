@@ -30,6 +30,15 @@ export interface SeedUser {
   avatar: string;
   bio: string;
   reputation: number;
+  isBanned?: boolean;
+  website?: string;
+  location?: string;
+  github?: string;
+  twitter?: string;
+  themePreference?: 'dark' | 'midnight' | 'system';
+  notifyReplies?: boolean;
+  notifyMentions?: boolean;
+  showOnlineStatus?: boolean;
   createdAt: Date;
 }
 

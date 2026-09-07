@@ -2,7 +2,7 @@ import React from 'react';
 import Link from 'next/link';
 import { getAllUsers } from '@/lib/store';
 import { RoleBadge, ReputationBadge } from '@/components/Badge';
-import { Users, Award, Calendar, ArrowLeft } from 'lucide-react';
+import { Users, Award, Calendar, ArrowLeft, MapPin, Globe } from 'lucide-react';
 
 export const revalidate = 0;
 
@@ -68,6 +68,28 @@ export default async function MembersPage() {
                 <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed pt-1">
                   {u.bio}
                 </p>
+              )}
+
+              {(u.location || u.website) && (
+                <div className="pt-2 flex items-center gap-3 text-[10px] text-slate-400">
+                  {u.location && (
+                    <span className="flex items-center gap-1 truncate">
+                      <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="truncate">{u.location}</span>
+                    </span>
+                  )}
+                  {u.website && (
+                    <a
+                      href={u.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition shrink-0"
+                    >
+                      <Globe className="w-3 h-3" />
+                      <span>Website</span>
+                    </a>
+                  )}
+                </div>
               )}
             </div>
           </div>

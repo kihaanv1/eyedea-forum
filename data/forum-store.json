@@ -7,9 +7,17 @@
       "passwordHash": "$2a$10$VCvsrShGd2av4iUIu6rkZ.oqRkWzuTF3Cn6a8b5MJgQzs22zEjumy",
       "role": "ADMIN",
       "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-      "bio": "Platform Owner & Founder of EyeDea.",
-      "reputation": 1018,
-      "createdAt": "2026-01-01T00:00:00.000Z"
+      "bio": "EyeDea Platform Founder with verified settings.",
+      "reputation": 1250,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "website": "https://ideasphere.ph",
+      "location": "BGC, Taguig, PH",
+      "github": "kihaan",
+      "twitter": "kihaan_dev",
+      "themePreference": "midnight",
+      "notifyReplies": true,
+      "notifyMentions": true,
+      "showOnlineStatus": true
     }
   ],
   "categories": [

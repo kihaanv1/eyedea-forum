@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -21,6 +21,16 @@ import {
   Activity,
   ArrowUpRight,
   Settings,
+  Camera,
+  Upload,
+  Trash2,
+  Shuffle,
+  Edit3,
+  X,
+  Check,
+  Globe,
+  MapPin,
+  Sparkles,
 } from 'lucide-react';
 import { RoleBadge } from '@/components/Badge';
 
@@ -38,7 +48,13 @@ interface UserItem {
   email: string;
   role: 'USER' | 'MODERATOR' | 'ADMIN';
   avatar?: string;
+  bio?: string;
   reputation: number;
+  isBanned?: boolean;
+  website?: string;
+  location?: string;
+  github?: string;
+  twitter?: string;
   createdAt: string;
 }
 
@@ -79,6 +95,26 @@ export default function AdminDashboardPage() {
   const [annTitle, setAnnTitle] = useState('');
   const [annContent, setAnnContent] = useState('');
   const [annPriority, setAnnPriority] = useState<'INFO' | 'WARNING' | 'CRITICAL'>('INFO');
+
+  // Edit User Settings Modal state
+  const [editingUser, setEditingUser] = useState<UserItem | null>(null);
+  const [editUsername, setEditUsername] = useState('');
+  const [editAvatar, setEditAvatar] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editRole, setEditRole] = useState<'USER' | 'MODERATOR' | 'ADMIN'>('USER');
+  const [editReputation, setEditReputation] = useState(10);
+  const [editIsBanned, setEditIsBanned] = useState(false);
+  const [editWebsite, setEditWebsite] = useState('');
+  const [editLocation, setEditLocation] = useState('');
+  const [editGithub, setEditGithub] = useState('');
+  const [editTwitter, setEditTwitter] = useState('');
+  const [isSavingUser, setIsSavingUser] = useState(false);
+
+  // Avatar upload for admin editing user
+  const adminFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [adminUploadFile, setAdminUploadFile] = useState<File | null>(null);
+  const [adminUploadPreview, setAdminUploadPreview] = useState<string | null>(null);
+  const [isAdminUploadingAvatar, setIsAdminUploadingAvatar] = useState(false);
 
   const [actionSuccess, setActionSuccess] = useState('');
   const [actionError, setActionError] = useState('');
@@ -237,6 +273,109 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleToggleBan = async (userId: string, isCurrentlyBanned: boolean) => {
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, action: 'toggleBan' }),
+      });
+      if (res.ok) {
+        setActionSuccess(`User account ${isCurrentlyBanned ? 'unbanned' : 'banned'} successfully`);
+        loadDashboardData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openEditModal = (u: UserItem) => {
+    setEditingUser(u);
+    setEditUsername(u.username);
+    setEditAvatar(u.avatar || '');
+    setEditBio(u.bio || '');
+    setEditRole(u.role);
+    setEditReputation(u.reputation);
+    setEditIsBanned(!!u.isBanned);
+    setEditWebsite(u.website || '');
+    setEditLocation(u.location || '');
+    setEditGithub(u.github || '');
+    setEditTwitter(u.twitter || '');
+    setAdminUploadFile(null);
+    setAdminUploadPreview(null);
+  };
+
+  const handleAdminFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.size > 5 * 1024 * 1024) {
+        setActionError('Avatar image must be smaller than 5MB.');
+        return;
+      }
+      setAdminUploadFile(file);
+      setAdminUploadPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handleSaveUserSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setIsSavingUser(true);
+    setActionError('');
+    setActionSuccess('');
+
+    try {
+      let finalAvatar = editAvatar.trim();
+
+      // If an avatar file was selected in admin modal, upload it first on behalf of this user
+      if (adminUploadFile) {
+        const formData = new FormData();
+        formData.append('avatar', adminUploadFile);
+        formData.append('userId', editingUser.id);
+
+        const upRes = await fetch('/api/users/avatar/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        const upData = await upRes.json();
+        if (!upRes.ok) {
+          throw new Error(upData.error || 'Failed to upload user avatar');
+        }
+        finalAvatar = upData.avatarUrl;
+      }
+
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: editingUser.id,
+          action: 'updateUserSettings',
+          username: editUsername,
+          avatar: finalAvatar,
+          bio: editBio,
+          role: editRole,
+          reputation: editReputation,
+          isBanned: editIsBanned,
+          website: editWebsite,
+          location: editLocation,
+          github: editGithub,
+          twitter: editTwitter,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update user');
+
+      setActionSuccess(`User settings for "${editUsername}" saved successfully!`);
+      setEditingUser(null);
+      loadDashboardData();
+    } catch (err: any) {
+      setActionError(err.message);
+    } finally {
+      setIsSavingUser(false);
+    }
+  };
+
   if (isCheckingAuth) {
     return (
       <div className="py-20 text-center space-y-3">
@@ -289,7 +428,7 @@ export default function AdminDashboardPage() {
           <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
             EyeDea Administration
           </h1>
-          <p className="text-xs text-slate-400">Manage categories, subforum boards, community members, roles, and broadcasts.</p>
+          <p className="text-xs text-slate-400">Manage categories, subforum boards, community members, user settings, avatars, and broadcasts.</p>
         </div>
 
         {/* Database Live Status Badge */}
@@ -322,7 +461,7 @@ export default function AdminDashboardPage() {
       <div className="flex items-center gap-2 border-b border-[#1f293e] pb-1 overflow-x-auto text-xs font-semibold">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-4 py-2 rounded-lg flex items-center gap-1.5 transition ${
+          className={`px-4 py-2 rounded-lg flex items-center gap-1.5 transition whitespace-nowrap ${
             activeTab === 'overview'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -333,7 +472,7 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('categories')}
-          className={`px-4 py-2 rounded-lg flex items-center gap-1.5 transition ${
+          className={`px-4 py-2 rounded-lg flex items-center gap-1.5 transition whitespace-nowrap ${
             activeTab === 'categories'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -344,7 +483,7 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('users')}
-          className={`px-4 py-2 rounded-lg flex items-center gap-1.5 transition ${
+          className={`px-4 py-2 rounded-lg flex items-center gap-1.5 transition whitespace-nowrap ${
             activeTab === 'users'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -355,7 +494,7 @@ export default function AdminDashboardPage() {
         </button>
         <button
           onClick={() => setActiveTab('announcements')}
-          className={`px-4 py-2 rounded-lg flex items-center gap-1.5 transition ${
+          className={`px-4 py-2 rounded-lg flex items-center gap-1.5 transition whitespace-nowrap ${
             activeTab === 'announcements'
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
@@ -531,10 +670,15 @@ export default function AdminDashboardPage() {
       {activeTab === 'users' && (
         <div className="rounded-xl bg-[#111728] border border-[#1f293e] shadow-lg overflow-hidden space-y-4 p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Users className="w-4 h-4 text-indigo-400" />
-              Member Roster & Privilege Controls
-            </h3>
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Users className="w-4 h-4 text-indigo-400" />
+                Member Roster & User Settings
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Manage profile pictures, roles, reputations, settings, and ban statuses for all members.
+              </p>
+            </div>
 
             <div className="relative w-full sm:w-64">
               <input
@@ -552,50 +696,80 @@ export default function AdminDashboardPage() {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-[#151c30] text-[11px] uppercase tracking-wider text-slate-400 font-semibold border-b border-[#212d46]">
                 <tr>
-                  <th className="py-2.5 px-3">Member</th>
-                  <th className="py-2.5 px-3">Role</th>
-                  <th className="py-2.5 px-3">Reputation</th>
-                  <th className="py-2.5 px-3 text-right">Assign Role</th>
+                  <th className="py-3 px-3">Member</th>
+                  <th className="py-3 px-3">Role</th>
+                  <th className="py-3 px-3">Reputation</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1b243a]">
                 {filteredUsers.map((u) => (
-                  <tr key={u.id} className="hover:bg-[#141b2f]">
+                  <tr key={u.id} className="hover:bg-[#141b2f] transition">
                     <td className="py-3 px-3">
-                      <div className="font-semibold text-slate-100">{u.username}</div>
-                      <div className="text-[11px] text-slate-500">{u.email}</div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-950/80 border border-indigo-500/40 overflow-hidden shrink-0">
+                          {u.avatar ? (
+                            <img src={u.avatar} alt={u.username} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center font-bold text-xs text-white bg-indigo-700">
+                              {u.username[0]?.toUpperCase()}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-bold text-slate-100 flex items-center gap-1.5">
+                            <span>{u.username}</span>
+                            {u.isBanned && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">
+                                BANNED
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-400">{u.email}</div>
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 px-3">
                       <RoleBadge role={u.role} />
                     </td>
-                    <td className="py-3 px-3 font-semibold text-indigo-400">
+                    <td className="py-3 px-3 font-bold text-indigo-300">
                       {u.reputation} pts
                     </td>
+                    <td className="py-3 px-3">
+                      {u.isBanned ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-950/60 text-rose-300 border border-rose-800/40">
+                          <Ban className="w-3 h-3 text-rose-400" /> Banned
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-950/60 text-emerald-300 border border-emerald-800/40">
+                          <Check className="w-3 h-3 text-emerald-400" /> Active
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-3 text-right">
-                      <div className="inline-flex items-center gap-1">
+                      <div className="inline-flex items-center gap-1.5">
                         <button
-                          onClick={() => handleUpdateRole(u.id, 'USER')}
-                          className={`px-2 py-1 rounded text-[10px] font-medium transition ${
-                            u.role === 'USER' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'
-                          }`}
+                          type="button"
+                          onClick={() => openEditModal(u)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition"
+                          title="Edit User Settings & Avatar"
                         >
-                          User
+                          <Settings className="w-3.5 h-3.5" />
+                          <span>Settings</span>
                         </button>
+
                         <button
-                          onClick={() => handleUpdateRole(u.id, 'MODERATOR')}
-                          className={`px-2 py-1 rounded text-[10px] font-medium transition ${
-                            u.role === 'MODERATOR' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-emerald-300'
+                          type="button"
+                          onClick={() => handleToggleBan(u.id, !!u.isBanned)}
+                          className={`p-1.5 rounded-lg text-xs font-medium border transition ${
+                            u.isBanned
+                              ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30'
                           }`}
+                          title={u.isBanned ? 'Unban Member' : 'Ban Member'}
                         >
-                          Mod
-                        </button>
-                        <button
-                          onClick={() => handleUpdateRole(u.id, 'ADMIN')}
-                          className={`px-2 py-1 rounded text-[10px] font-medium transition ${
-                            u.role === 'ADMIN' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-amber-300'
-                          }`}
-                        >
-                          Admin
+                          <Ban className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>
@@ -663,6 +837,228 @@ export default function AdminDashboardPage() {
               Broadcast to Site
             </button>
           </form>
+        </div>
+      )}
+
+      {/* ADMIN EDIT USER SETTINGS MODAL */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div className="w-full max-w-xl bg-[#111728] border border-[#253352] rounded-2xl p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-[#1f2c47]">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-base font-extrabold text-white">
+                  User Settings: <span className="text-indigo-400">@{editingUser.username}</span>
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingUser(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUserSettings} className="space-y-4">
+              {/* Avatar Section */}
+              <div className="p-4 rounded-xl bg-[#141b2f] border border-[#232e4d] space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-indigo-400" /> Profile Picture & Avatar
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rand = Math.random().toString(36).substring(2, 8);
+                      setEditAvatar(`https://api.dicebear.com/7.x/bottts/svg?seed=${rand}`);
+                      setAdminUploadFile(null);
+                      setAdminUploadPreview(null);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-400 hover:text-indigo-300"
+                  >
+                    <Shuffle className="w-3 h-3" /> Roll Random
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-xl bg-indigo-950/80 border-2 border-indigo-500/50 overflow-hidden shrink-0">
+                    {adminUploadPreview ? (
+                      <img src={adminUploadPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : editAvatar ? (
+                      <img src={editAvatar} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center font-bold text-lg text-white bg-indigo-700">
+                        {editUsername[0]?.toUpperCase() || 'U'}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => adminFileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold shadow transition"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        {adminUploadFile ? 'Replace Selected Image' : 'Upload Image File'}
+                      </button>
+
+                      {editAvatar && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditAvatar('');
+                            setAdminUploadFile(null);
+                            setAdminUploadPreview(null);
+                          }}
+                          className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
+                          title="Remove Avatar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      ref={adminFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAdminFileSelect}
+                    />
+
+                    <input
+                      type="text"
+                      placeholder="Or enter Avatar Image URL..."
+                      value={editAvatar}
+                      onChange={(e) => {
+                        setEditAvatar(e.target.value);
+                        setAdminUploadFile(null);
+                        setAdminUploadPreview(null);
+                      }}
+                      className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Username & Role Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    required
+                    minLength={3}
+                    maxLength={25}
+                    className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Privilege Role</label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as any)}
+                    className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="USER">USER (Standard Member)</option>
+                    <option value="MODERATOR">MODERATOR (Community Mod)</option>
+                    <option value="ADMIN">ADMIN (Platform Administrator)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Reputation & Ban Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Reputation Score</label>
+                  <input
+                    type="number"
+                    value={editReputation}
+                    onChange={(e) => setEditReputation(parseInt(e.target.value, 10) || 0)}
+                    className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Account Ban Status</label>
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-[#0d1220] border border-[#232f4a] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editIsBanned}
+                      onChange={(e) => setEditIsBanned(e.target.checked)}
+                      className="rounded border-slate-700 text-rose-600 focus:ring-rose-500 bg-slate-800"
+                    />
+                    <span className={`text-xs font-bold ${editIsBanned ? 'text-rose-400' : 'text-slate-300'}`}>
+                      {editIsBanned ? 'Account Banned' : 'Account Active (Allowed)'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">Bio / Statement</label>
+                <textarea
+                  rows={2}
+                  maxLength={300}
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  placeholder="User bio..."
+                  className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none"
+                />
+              </div>
+
+              {/* Location & Website */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Location</label>
+                  <input
+                    type="text"
+                    value={editLocation}
+                    onChange={(e) => setEditLocation(e.target.value)}
+                    placeholder="e.g. Quezon City, PH"
+                    className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">Website</label>
+                  <input
+                    type="url"
+                    value={editWebsite}
+                    onChange={(e) => setEditWebsite(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full bg-[#0d1220] border border-[#232f4a] rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Buttons */}
+              <div className="pt-3 border-t border-[#1f2c47] flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setEditingUser(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingUser}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-lg shadow-indigo-600/30 transition disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4" />
+                  {isSavingUser ? 'Saving Settings...' : 'Save User Settings'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

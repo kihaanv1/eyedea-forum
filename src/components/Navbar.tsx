@@ -15,6 +15,7 @@ import {
   Users,
   BookOpen,
   Sparkles,
+  Settings,
 } from 'lucide-react';
 import { RoleBadge } from './Badge';
 
@@ -161,8 +162,12 @@ export default function Navbar() {
               <div className="w-8 h-8 rounded-full bg-slate-800 animate-pulse" />
             ) : user ? (
               <div className="flex items-center gap-3 pl-2 border-l border-[#222c44]">
-                <div className="flex items-center gap-2 text-left">
-                  <div className="w-8 h-8 rounded-full bg-indigo-900 border border-indigo-500/40 overflow-hidden flex items-center justify-center text-xs font-bold text-white">
+                <Link
+                  href="/settings"
+                  title="Profile Settings"
+                  className="flex items-center gap-2 text-left group hover:opacity-90 transition"
+                >
+                  <div className="w-8 h-8 rounded-full bg-indigo-900 border border-indigo-500/40 overflow-hidden flex items-center justify-center text-xs font-bold text-white group-hover:border-indigo-400 transition">
                     {user.avatar ? (
                       <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
                     ) : (
@@ -171,14 +176,22 @@ export default function Navbar() {
                   </div>
                   <div className="hidden lg:block">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-semibold text-slate-200">{user.username}</span>
+                      <span className="text-xs font-semibold text-slate-200 group-hover:text-indigo-300 transition">{user.username}</span>
                       <RoleBadge role={user.role} />
                     </div>
                     <span className="text-[10px] text-indigo-400 flex items-center gap-1">
                       <Sparkles className="w-2.5 h-2.5" /> {user.reputation} rep
                     </span>
                   </div>
-                </div>
+                </Link>
+
+                <Link
+                  href="/settings"
+                  title="Profile Settings"
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-indigo-300 transition"
+                >
+                  <Settings className="w-4 h-4" />
+                </Link>
 
                 <button
                   onClick={handleLogout}
@@ -260,10 +273,23 @@ export default function Navbar() {
           {user ? (
             <div className="pt-2 border-t border-[#1b2336] space-y-2">
               <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-xs font-semibold text-slate-200 block">{user.username}</span>
-                  <RoleBadge role={user.role} />
-                </div>
+                <Link
+                  href="/settings"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-2"
+                >
+                  <div className="w-7 h-7 rounded-full bg-indigo-900 border border-indigo-500/40 overflow-hidden flex items-center justify-center text-xs font-bold text-white">
+                    {user.avatar ? (
+                      <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
+                    ) : (
+                      user.username[0].toUpperCase()
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-slate-200 block">{user.username}</span>
+                    <RoleBadge role={user.role} />
+                  </div>
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="text-xs text-rose-400 flex items-center gap-1 hover:underline"
@@ -271,6 +297,14 @@ export default function Navbar() {
                   <LogOut className="w-3.5 h-3.5" /> Log Out
                 </button>
               </div>
+
+              <Link
+                href="/settings"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="flex items-center gap-2 py-2 px-3 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-xs font-medium text-slate-200 transition"
+              >
+                <Settings className="w-3.5 h-3.5 text-indigo-400" /> Profile Settings
+              </Link>
 
               {user.role === 'ADMIN' && (
                 <Link

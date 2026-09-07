@@ -30,3 +30,10 @@ Thumbs.db
 # Local database files
 prisma/*.db
 prisma/*.db-journal
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# User uploads (keep directory with .gitkeep)
+public/uploads/avatars/*
+!public/uploads/avatars/.gitkeep

@@ -207,20 +207,36 @@ export async function getAllUsers(): Promise<SeedUser[]> {
     const users = await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
     });
-    return users.map((u) => ({
-      id: u.id,
-      username: u.username,
-      email: u.email,
-      passwordHash: '',
-      role: u.role as 'USER' | 'MODERATOR' | 'ADMIN',
-      avatar: u.avatar || '',
-      bio: u.bio || '',
-      reputation: u.reputation,
-      createdAt: u.createdAt,
-    }));
+    return users.map((u) => {
+      const mem = memoryState.users.find((m) => m.id === u.id);
+      return {
+        id: u.id,
+        username: u.username,
+        email: u.email,
+        passwordHash: '',
+        role: u.role as 'USER' | 'MODERATOR' | 'ADMIN',
+        avatar: u.avatar || '',
+        bio: u.bio || '',
+        reputation: u.reputation,
+        isBanned: u.isBanned,
+        website: mem?.website || '',
+        location: mem?.location || '',
+        github: mem?.github || '',
+        twitter: mem?.twitter || '',
+        themePreference: mem?.themePreference || 'dark',
+        notifyReplies: mem?.notifyReplies !== false,
+        notifyMentions: mem?.notifyMentions !== false,
+        showOnlineStatus: mem?.showOnlineStatus !== false,
+        createdAt: u.createdAt,
+      };
+    });
   }
 
-  return memoryState.users.map((u) => ({ ...u, passwordHash: '' }));
+  return memoryState.users.map((u) => ({
+    ...u,
+    isBanned: !!u.isBanned,
+    passwordHash: '',
+  }));
 }
 
 export async function updateUserRole(userId: string, role: 'USER' | 'MODERATOR' | 'ADMIN'): Promise<boolean> {
@@ -256,11 +272,301 @@ export async function toggleUserBan(userId: string): Promise<boolean> {
 
   const user = memoryState.users.find((u) => u.id === userId);
   if (user) {
-    user.role = user.role === 'USER' ? 'USER' : user.role;
+    user.isBanned = !user.isBanned;
     persistState();
     return true;
   }
   return false;
+}
+
+export async function adminUpdateUser(
+  userId: string,
+  data: {
+    username?: string;
+    avatar?: string;
+    bio?: string;
+    role?: 'USER' | 'MODERATOR' | 'ADMIN';
+    reputation?: number;
+    isBanned?: boolean;
+    website?: string;
+    location?: string;
+    github?: string;
+    twitter?: string;
+  }
+): Promise<{ success: boolean; error?: string; user?: SeedUser }> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    if (data.username) {
+      const existing = await prisma.user.findFirst({
+        where: {
+          username: { equals: data.username, mode: 'insensitive' },
+          NOT: { id: userId },
+        },
+      });
+      if (existing) {
+        return { success: false, error: 'Username is already taken by another member' };
+      }
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.username ? { username: data.username } : {}),
+        ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
+        ...(data.bio !== undefined ? { bio: data.bio } : {}),
+        ...(data.role ? { role: data.role } : {}),
+        ...(data.reputation !== undefined ? { reputation: data.reputation } : {}),
+        ...(data.isBanned !== undefined ? { isBanned: data.isBanned } : {}),
+      },
+    });
+
+    const mem = memoryState.users.find((u) => u.id === userId);
+    if (mem) {
+      if (data.username) mem.username = data.username;
+      if (data.avatar !== undefined) mem.avatar = data.avatar;
+      if (data.bio !== undefined) mem.bio = data.bio;
+      if (data.role) mem.role = data.role;
+      if (data.reputation !== undefined) mem.reputation = data.reputation;
+      if (data.isBanned !== undefined) mem.isBanned = data.isBanned;
+      if (data.website !== undefined) mem.website = data.website;
+      if (data.location !== undefined) mem.location = data.location;
+      if (data.github !== undefined) mem.github = data.github;
+      if (data.twitter !== undefined) mem.twitter = data.twitter;
+      persistState();
+    }
+
+    return {
+      success: true,
+      user: {
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        passwordHash: updated.passwordHash,
+        role: updated.role as 'USER' | 'MODERATOR' | 'ADMIN',
+        avatar: updated.avatar || '',
+        bio: updated.bio || '',
+        reputation: updated.reputation,
+        isBanned: updated.isBanned,
+        website: mem?.website || '',
+        location: mem?.location || '',
+        github: mem?.github || '',
+        twitter: mem?.twitter || '',
+        themePreference: mem?.themePreference || 'dark',
+        notifyReplies: mem?.notifyReplies !== false,
+        notifyMentions: mem?.notifyMentions !== false,
+        showOnlineStatus: mem?.showOnlineStatus !== false,
+        createdAt: updated.createdAt,
+      },
+    };
+  }
+
+  // Memory fallback
+  const user = memoryState.users.find((u) => u.id === userId);
+  if (!user) return { success: false, error: 'User not found' };
+
+  if (data.username && data.username.toLowerCase() !== user.username.toLowerCase()) {
+    const existing = memoryState.users.find(
+      (u) => u.id !== userId && u.username.toLowerCase() === data.username!.toLowerCase()
+    );
+    if (existing) {
+      return { success: false, error: 'Username is already taken by another member' };
+    }
+    user.username = data.username;
+  }
+
+  if (data.avatar !== undefined) user.avatar = data.avatar;
+  if (data.bio !== undefined) user.bio = data.bio;
+  if (data.role) user.role = data.role;
+  if (data.reputation !== undefined) user.reputation = data.reputation;
+  if (data.isBanned !== undefined) user.isBanned = data.isBanned;
+  if (data.website !== undefined) user.website = data.website;
+  if (data.location !== undefined) user.location = data.location;
+  if (data.github !== undefined) user.github = data.github;
+  if (data.twitter !== undefined) user.twitter = data.twitter;
+
+  persistState();
+  return { success: true, user: { ...user } };
+}
+
+export async function updateUserProfile(
+  userId: string,
+  data: {
+    username?: string;
+    avatar?: string;
+    bio?: string;
+    passwordHash?: string;
+    website?: string;
+    location?: string;
+    github?: string;
+    twitter?: string;
+    themePreference?: 'dark' | 'midnight' | 'system';
+    notifyReplies?: boolean;
+    notifyMentions?: boolean;
+    showOnlineStatus?: boolean;
+  }
+): Promise<{ success: boolean; error?: string; user?: SeedUser }> {
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    if (data.username) {
+      const existing = await prisma.user.findFirst({
+        where: {
+          username: { equals: data.username, mode: 'insensitive' },
+          NOT: { id: userId },
+        },
+      });
+      if (existing) {
+        return { success: false, error: 'Username is already taken by another member' };
+      }
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(data.username ? { username: data.username } : {}),
+        ...(data.avatar !== undefined ? { avatar: data.avatar } : {}),
+        ...(data.bio !== undefined ? { bio: data.bio } : {}),
+        ...(data.passwordHash ? { passwordHash: data.passwordHash } : {}),
+      },
+    });
+
+    const mem = memoryState.users.find((u) => u.id === userId);
+    if (mem) {
+      if (data.username) mem.username = data.username;
+      if (data.avatar !== undefined) mem.avatar = data.avatar;
+      if (data.bio !== undefined) mem.bio = data.bio;
+      if (data.passwordHash) mem.passwordHash = data.passwordHash;
+      if (data.website !== undefined) mem.website = data.website;
+      if (data.location !== undefined) mem.location = data.location;
+      if (data.github !== undefined) mem.github = data.github;
+      if (data.twitter !== undefined) mem.twitter = data.twitter;
+      if (data.themePreference !== undefined) mem.themePreference = data.themePreference;
+      if (data.notifyReplies !== undefined) mem.notifyReplies = data.notifyReplies;
+      if (data.notifyMentions !== undefined) mem.notifyMentions = data.notifyMentions;
+      if (data.showOnlineStatus !== undefined) mem.showOnlineStatus = data.showOnlineStatus;
+      persistState();
+    }
+
+    return {
+      success: true,
+      user: {
+        id: updated.id,
+        username: updated.username,
+        email: updated.email,
+        passwordHash: updated.passwordHash,
+        role: updated.role as 'USER' | 'MODERATOR' | 'ADMIN',
+        avatar: updated.avatar || '',
+        bio: updated.bio || '',
+        reputation: updated.reputation,
+        isBanned: updated.isBanned,
+        website: mem?.website || '',
+        location: mem?.location || '',
+        github: mem?.github || '',
+        twitter: mem?.twitter || '',
+        themePreference: mem?.themePreference || 'dark',
+        notifyReplies: mem?.notifyReplies !== false,
+        notifyMentions: mem?.notifyMentions !== false,
+        showOnlineStatus: mem?.showOnlineStatus !== false,
+        createdAt: updated.createdAt,
+      },
+    };
+  }
+
+  // Memory fallback
+  const user = memoryState.users.find((u) => u.id === userId);
+  if (!user) return { success: false, error: 'User not found' };
+
+  if (data.username && data.username.toLowerCase() !== user.username.toLowerCase()) {
+    const existing = memoryState.users.find(
+      (u) => u.id !== userId && u.username.toLowerCase() === data.username!.toLowerCase()
+    );
+    if (existing) {
+      return { success: false, error: 'Username is already taken by another member' };
+    }
+    user.username = data.username;
+  }
+
+  if (data.avatar !== undefined) user.avatar = data.avatar;
+  if (data.bio !== undefined) user.bio = data.bio;
+  if (data.passwordHash) user.passwordHash = data.passwordHash;
+  if (data.website !== undefined) user.website = data.website;
+  if (data.location !== undefined) user.location = data.location;
+  if (data.github !== undefined) user.github = data.github;
+  if (data.twitter !== undefined) user.twitter = data.twitter;
+  if (data.themePreference !== undefined) user.themePreference = data.themePreference;
+  if (data.notifyReplies !== undefined) user.notifyReplies = data.notifyReplies;
+  if (data.notifyMentions !== undefined) user.notifyMentions = data.notifyMentions;
+  if (data.showOnlineStatus !== undefined) user.showOnlineStatus = data.showOnlineStatus;
+
+  persistState();
+  return { success: true, user: { ...user } };
+}
+
+export async function getUserProfileWithStats(userId: string) {
+  const mem = memoryState.users.find((u) => u.id === userId);
+  const usePrisma = await checkPrismaConnection();
+  if (usePrisma) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        _count: {
+          select: { threads: true, posts: true },
+        },
+      },
+    });
+    if (!user) return null;
+    return {
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      avatar: user.avatar,
+      bio: user.bio,
+      reputation: user.reputation,
+      isBanned: user.isBanned,
+      website: mem?.website || '',
+      location: mem?.location || '',
+      github: mem?.github || '',
+      twitter: mem?.twitter || '',
+      themePreference: mem?.themePreference || 'dark',
+      notifyReplies: mem?.notifyReplies !== false,
+      notifyMentions: mem?.notifyMentions !== false,
+      showOnlineStatus: mem?.showOnlineStatus !== false,
+      createdAt: user.createdAt,
+      threadCount: user._count.threads,
+      postCount: user._count.posts,
+    };
+  }
+
+  const user = memoryState.users.find((u) => u.id === userId);
+  if (!user) return null;
+
+  const threadCount = memoryState.threads.filter((t) => t.authorId === userId).length;
+  let postCount = 0;
+  memoryState.threads.forEach((t) => {
+    postCount += t.posts.filter((p) => p.authorId === userId).length;
+  });
+
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    avatar: user.avatar,
+    bio: user.bio,
+    reputation: user.reputation,
+    isBanned: !!user.isBanned,
+    website: user.website || '',
+    location: user.location || '',
+    github: user.github || '',
+    twitter: user.twitter || '',
+    themePreference: user.themePreference || 'dark',
+    notifyReplies: user.notifyReplies !== false,
+    notifyMentions: user.notifyMentions !== false,
+    showOnlineStatus: user.showOnlineStatus !== false,
+    createdAt: user.createdAt,
+    threadCount,
+    postCount,
+  };
 }
 
 // -------------------------------------------------------------
