@@ -18,10 +18,11 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      const clientVaultToken = typeof window !== 'undefined' ? localStorage.getItem('eyedea_vault_token') : null;
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ identifier, password, clientVaultToken }),
       });
 
       const data = await res.json();
@@ -30,6 +31,10 @@ export default function LoginPage() {
         setError(data.error || 'Invalid credentials');
         return;
       }
+
+      if (data.token) localStorage.setItem('eyedea_session_token', data.token);
+      if (data.vaultToken) localStorage.setItem('eyedea_vault_token', data.vaultToken);
+      if (data.user) localStorage.setItem('eyedea_user_cache', JSON.stringify(data.user));
 
       // Notify components of auth state change
       window.dispatchEvent(new Event('auth-change'));

@@ -70,6 +70,8 @@ export default function Navbar() {
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
+      localStorage.removeItem('eyedea_session_token');
+      localStorage.removeItem('eyedea_user_cache');
       setUser(null);
       window.dispatchEvent(new Event('auth-change'));
       window.location.href = '/';

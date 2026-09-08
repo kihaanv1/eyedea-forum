@@ -20,6 +20,14 @@ model User {
   bio          String?
   reputation   Int            @default(10)
   isBanned     Boolean        @default(false)
+  website      String?
+  location     String?
+  github       String?
+  twitter      String?
+  themePreference  String?    @default("dark")
+  notifyReplies    Boolean    @default(true)
+  notifyMentions   Boolean    @default(true)
+  showOnlineStatus Boolean    @default(true)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 

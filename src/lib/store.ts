@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import {
   SEED_CATEGORIES,
   SEED_THREADS,
@@ -26,15 +27,31 @@ interface MemoryState {
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data');
-const DATA_FILE = path.join(DATA_DIR, 'forum-store.json');
+const LOCAL_DATA_FILE = path.join(DATA_DIR, 'forum-store.json');
+const TMP_DATA_FILE = path.join(os.tmpdir(), 'eyedea-forum-store.json');
 
 function loadPersistedState(): MemoryState | null {
   try {
-    if (typeof window === 'undefined' && fs.existsSync(DATA_FILE)) {
-      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
-      const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.threads) && Array.isArray(parsed.users)) {
-        return parsed;
+    if (typeof window === 'undefined') {
+      // 1. Check /tmp file first (contains serverless runtime updates)
+      if (fs.existsSync(TMP_DATA_FILE)) {
+        try {
+          const raw = fs.readFileSync(TMP_DATA_FILE, 'utf-8');
+          const parsed = JSON.parse(raw);
+          if (parsed && Array.isArray(parsed.threads) && Array.isArray(parsed.users)) {
+            return parsed;
+          }
+        } catch {
+          // ignore corrupted tmp
+        }
+      }
+      // 2. Check repository data file
+      if (fs.existsSync(LOCAL_DATA_FILE)) {
+        const raw = fs.readFileSync(LOCAL_DATA_FILE, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.threads) && Array.isArray(parsed.users)) {
+          return parsed;
+        }
       }
     }
   } catch (e) {
@@ -46,10 +63,22 @@ function loadPersistedState(): MemoryState | null {
 export function persistState() {
   try {
     if (typeof window === 'undefined') {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
+      const serialized = JSON.stringify(memoryState, null, 2);
+      // Write to /tmp (always writable in AWS Lambda / Vercel serverless)
+      try {
+        fs.writeFileSync(TMP_DATA_FILE, serialized, 'utf-8');
+      } catch {
+        // ignore tmp write issues
       }
-      fs.writeFileSync(DATA_FILE, JSON.stringify(memoryState, null, 2), 'utf-8');
+      // Write to local project data file (works in local development, EROFS on serverless)
+      try {
+        if (!fs.existsSync(DATA_DIR)) {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        fs.writeFileSync(LOCAL_DATA_FILE, serialized, 'utf-8');
+      } catch {
+        // EROFS in read-only environment is expected
+      }
     }
   } catch (e) {
     console.error('Error saving forum data to disk:', e);
@@ -80,18 +109,27 @@ async function checkPrismaConnection(): Promise<boolean> {
   if (globalForStore.__isPrismaAvailable !== undefined && globalForStore.__isPrismaAvailable !== null) {
     return globalForStore.__isPrismaAvailable;
   }
+  const dbUrl = process.env.DATABASE_URL;
+  // If no DATABASE_URL or pointing to localhost in production, bypass Prisma immediately
+  if (!dbUrl || (process.env.NODE_ENV === 'production' && dbUrl.includes('localhost'))) {
+    globalForStore.__isPrismaAvailable = false;
+    return false;
+  }
   try {
-    // Quick test query with a short timeout
-    await Promise.race([
-      prisma.$queryRaw`SELECT 1`,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 1500)),
+    // Quick test query with a short timeout and safe catch
+    const isConn = await Promise.race([
+      prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1200)),
     ]);
-    globalForStore.__isPrismaAvailable = true;
-    console.log('✅ Connected to PostgreSQL via Prisma');
-    return true;
+    globalForStore.__isPrismaAvailable = isConn;
+    if (isConn) {
+      console.log('✅ Connected to PostgreSQL via Prisma');
+    } else {
+      console.log('ℹ️ Running with resilient forum store.');
+    }
+    return isConn;
   } catch {
     globalForStore.__isPrismaAvailable = false;
-    console.log('ℹ️ Running with in-memory resilient forum store. To enable PostgreSQL, configure DATABASE_URL in .env and run npx prisma db push.');
     return false;
   }
 }
@@ -100,53 +138,171 @@ async function checkPrismaConnection(): Promise<boolean> {
 // USER METHODS
 // -------------------------------------------------------------
 
+export function ensureUserInMemory(user: {
+  id: string;
+  username: string;
+  email: string;
+  role?: 'USER' | 'MODERATOR' | 'ADMIN';
+  avatar?: string | null;
+  bio?: string | null;
+  reputation?: number;
+  website?: string | null;
+  location?: string | null;
+  github?: string | null;
+  twitter?: string | null;
+  themePreference?: 'dark' | 'midnight' | 'system';
+  notifyReplies?: boolean;
+  notifyMentions?: boolean;
+  showOnlineStatus?: boolean;
+  createdAt?: string | Date;
+  passwordHash?: string;
+}): SeedUser {
+  const existing = memoryState.users.find(
+    (u) => u.id === user.id || u.username.toLowerCase() === user.username.toLowerCase()
+  );
+
+  if (existing) {
+    if (user.avatar !== undefined && user.avatar !== null) existing.avatar = user.avatar;
+    if (user.bio !== undefined && user.bio !== null) existing.bio = user.bio;
+    if (user.website !== undefined && user.website !== null) existing.website = user.website;
+    if (user.location !== undefined && user.location !== null) existing.location = user.location;
+    if (user.github !== undefined && user.github !== null) existing.github = user.github;
+    if (user.twitter !== undefined && user.twitter !== null) existing.twitter = user.twitter;
+    if (user.themePreference) existing.themePreference = user.themePreference;
+    if (user.notifyReplies !== undefined) existing.notifyReplies = user.notifyReplies;
+    if (user.notifyMentions !== undefined) existing.notifyMentions = user.notifyMentions;
+    if (user.showOnlineStatus !== undefined) existing.showOnlineStatus = user.showOnlineStatus;
+    if (user.reputation !== undefined) existing.reputation = user.reputation;
+    if (user.passwordHash) existing.passwordHash = user.passwordHash;
+    persistState();
+    return existing;
+  }
+
+  const newUser: SeedUser = {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    passwordHash: user.passwordHash || '',
+    role: user.role || 'USER',
+    avatar: user.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`,
+    bio: user.bio || 'New member of EyeDea',
+    reputation: user.reputation ?? 10,
+    website: user.website || '',
+    location: user.location || '',
+    github: user.github || '',
+    twitter: user.twitter || '',
+    themePreference: user.themePreference || 'dark',
+    notifyReplies: user.notifyReplies !== false,
+    notifyMentions: user.notifyMentions !== false,
+    showOnlineStatus: user.showOnlineStatus !== false,
+    createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
+  };
+
+  memoryState.users.push(newUser);
+  persistState();
+  return newUser;
+}
+
 export async function findUserByEmailOrUsername(identifier: string): Promise<SeedUser | null> {
   const usePrisma = await checkPrismaConnection();
   if (usePrisma) {
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ email: identifier }, { username: identifier }],
-      },
-    });
-    if (!user) return null;
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      passwordHash: user.passwordHash,
-      role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
-      avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-      bio: user.bio || '',
-      reputation: user.reputation,
-      createdAt: user.createdAt,
-    };
+    try {
+      const user = await prisma.user.findFirst({
+        where: {
+          OR: [{ email: identifier }, { username: identifier }],
+        },
+      });
+      if (user) {
+        return {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          passwordHash: user.passwordHash,
+          role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
+          avatar: user.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`,
+          bio: user.bio || '',
+          website: user.website || '',
+          location: user.location || '',
+          github: user.github || '',
+          twitter: user.twitter || '',
+          themePreference: (user.themePreference as any) || 'dark',
+          notifyReplies: user.notifyReplies !== false,
+          notifyMentions: user.notifyMentions !== false,
+          showOnlineStatus: user.showOnlineStatus !== false,
+          reputation: user.reputation,
+          createdAt: user.createdAt,
+        };
+      }
+    } catch (e) {
+      console.warn('Prisma findUserByEmailOrUsername error, falling back:', e);
+    }
   }
 
-  const user = memoryState.users.find(
+  let user = memoryState.users.find(
     (u) => u.email.toLowerCase() === identifier.toLowerCase() || u.username.toLowerCase() === identifier.toLowerCase()
   );
+
+  if (!user) {
+    const persisted = loadPersistedState();
+    if (persisted && Array.isArray(persisted.users)) {
+      for (const pu of persisted.users) {
+        if (!memoryState.users.some((m) => m.id === pu.id)) {
+          memoryState.users.push(pu);
+        }
+      }
+      user = memoryState.users.find(
+        (u) => u.email.toLowerCase() === identifier.toLowerCase() || u.username.toLowerCase() === identifier.toLowerCase()
+      );
+    }
+  }
+
   return user ? { ...user } : null;
 }
 
 export async function findUserById(id: string): Promise<SeedUser | null> {
   const usePrisma = await checkPrismaConnection();
   if (usePrisma) {
-    const user = await prisma.user.findUnique({ where: { id } });
-    if (!user) return null;
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      passwordHash: user.passwordHash,
-      role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
-      avatar: user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-      bio: user.bio || '',
-      reputation: user.reputation,
-      createdAt: user.createdAt,
-    };
+    try {
+      const user = await prisma.user.findUnique({ where: { id } });
+      if (user) {
+        return {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          passwordHash: user.passwordHash,
+          role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
+          avatar: user.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${user.username}`,
+          bio: user.bio || '',
+          website: user.website || '',
+          location: user.location || '',
+          github: user.github || '',
+          twitter: user.twitter || '',
+          themePreference: (user.themePreference as any) || 'dark',
+          notifyReplies: user.notifyReplies !== false,
+          notifyMentions: user.notifyMentions !== false,
+          showOnlineStatus: user.showOnlineStatus !== false,
+          reputation: user.reputation,
+          createdAt: user.createdAt,
+        };
+      }
+    } catch (e) {
+      console.warn('Prisma findUserById error, falling back:', e);
+    }
   }
 
-  const user = memoryState.users.find((u) => u.id === id);
+  let user = memoryState.users.find((u) => u.id === id);
+  if (!user) {
+    const persisted = loadPersistedState();
+    if (persisted && Array.isArray(persisted.users)) {
+      for (const pu of persisted.users) {
+        if (!memoryState.users.some((m) => m.id === pu.id)) {
+          memoryState.users.push(pu);
+        }
+      }
+      user = memoryState.users.find((u) => u.id === id);
+    }
+  }
+
   return user ? { ...user } : null;
 }
 
@@ -156,49 +312,59 @@ export async function createUser(data: {
   passwordHash: string;
   bio?: string;
   avatar?: string;
+  website?: string;
+  location?: string;
+  github?: string;
+  twitter?: string;
+  themePreference?: 'dark' | 'midnight' | 'system';
   role?: 'USER' | 'MODERATOR' | 'ADMIN';
 }): Promise<SeedUser> {
   const usePrisma = await checkPrismaConnection();
   if (usePrisma) {
-    const created = await prisma.user.create({
-      data: {
-        username: data.username,
-        email: data.email,
-        passwordHash: data.passwordHash,
-        bio: data.bio || 'New member of EyeDea',
-        avatar: data.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${data.username}`,
-        role: data.role || 'USER',
-        reputation: 10,
-      },
-    });
+    try {
+      const created = await prisma.user.create({
+        data: {
+          username: data.username,
+          email: data.email,
+          passwordHash: data.passwordHash,
+          bio: data.bio || 'New member of EyeDea',
+          avatar: data.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${data.username}`,
+          website: data.website || '',
+          location: data.location || '',
+          github: data.github || '',
+          twitter: data.twitter || '',
+          themePreference: data.themePreference || 'dark',
+          role: data.role || 'USER',
+          reputation: 10,
+        },
+      });
 
-    const memUser: SeedUser = {
-      id: created.id,
-      username: created.username,
-      email: created.email,
-      passwordHash: created.passwordHash,
-      role: created.role as 'USER' | 'MODERATOR' | 'ADMIN',
-      avatar: created.avatar || '',
-      bio: created.bio || '',
-      reputation: created.reputation,
-      createdAt: created.createdAt,
-    };
-    if (!memoryState.users.some((u) => u.id === created.id)) {
-      memoryState.users.push(memUser);
-      persistState();
+      const memUser: SeedUser = {
+        id: created.id,
+        username: created.username,
+        email: created.email,
+        passwordHash: created.passwordHash,
+        role: created.role as 'USER' | 'MODERATOR' | 'ADMIN',
+        avatar: created.avatar || '',
+        bio: created.bio || '',
+        website: created.website || '',
+        location: created.location || '',
+        github: created.github || '',
+        twitter: created.twitter || '',
+        themePreference: (created.themePreference as any) || 'dark',
+        reputation: created.reputation,
+        createdAt: created.createdAt,
+      };
+
+      if (!memoryState.users.some((u) => u.id === created.id)) {
+        memoryState.users.push(memUser);
+        persistState();
+      }
+
+      return memUser;
+    } catch (err) {
+      console.warn('Prisma createUser failed, falling back to resilient memory store:', err);
     }
-
-    return {
-      id: created.id,
-      username: created.username,
-      email: created.email,
-      passwordHash: created.passwordHash,
-      role: created.role as 'USER' | 'MODERATOR' | 'ADMIN',
-      avatar: created.avatar,
-      bio: created.bio || '',
-      reputation: created.reputation,
-      createdAt: created.createdAt,
-    };
   }
 
   const newUser: SeedUser = {
@@ -208,6 +374,14 @@ export async function createUser(data: {
     passwordHash: data.passwordHash,
     bio: data.bio || 'New member of EyeDea',
     avatar: data.avatar || `https://api.dicebear.com/7.x/identicon/svg?seed=${data.username}`,
+    website: data.website || '',
+    location: data.location || '',
+    github: data.github || '',
+    twitter: data.twitter || '',
+    themePreference: data.themePreference || 'dark',
+    notifyReplies: true,
+    notifyMentions: true,
+    showOnlineStatus: true,
     role: data.role || 'USER',
     reputation: 10,
     createdAt: new Date(),
@@ -221,32 +395,46 @@ export async function createUser(data: {
 export async function getAllUsers(): Promise<SeedUser[]> {
   const usePrisma = await checkPrismaConnection();
   if (usePrisma) {
-    const users = await prisma.user.findMany({
-      orderBy: { createdAt: 'desc' },
-    });
-    return users.map((u) => {
-      const mem = memoryState.users.find((m) => m.id === u.id);
-      return {
-        id: u.id,
-        username: u.username,
-        email: u.email,
-        passwordHash: '',
-        role: u.role as 'USER' | 'MODERATOR' | 'ADMIN',
-        avatar: u.avatar || '',
-        bio: u.bio || '',
-        reputation: u.reputation,
-        isBanned: u.isBanned,
-        website: mem?.website || '',
-        location: mem?.location || '',
-        github: mem?.github || '',
-        twitter: mem?.twitter || '',
-        themePreference: mem?.themePreference || 'dark',
-        notifyReplies: mem?.notifyReplies !== false,
-        notifyMentions: mem?.notifyMentions !== false,
-        showOnlineStatus: mem?.showOnlineStatus !== false,
-        createdAt: u.createdAt,
-      };
-    });
+    try {
+      const users = await prisma.user.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+      return users.map((u) => {
+        const mem = memoryState.users.find((m) => m.id === u.id);
+        return {
+          id: u.id,
+          username: u.username,
+          email: u.email,
+          passwordHash: '',
+          role: u.role as 'USER' | 'MODERATOR' | 'ADMIN',
+          avatar: u.avatar || '',
+          bio: u.bio || '',
+          reputation: u.reputation,
+          isBanned: u.isBanned,
+          website: u.website || mem?.website || '',
+          location: u.location || mem?.location || '',
+          github: u.github || mem?.github || '',
+          twitter: u.twitter || mem?.twitter || '',
+          themePreference: (u.themePreference as any) || mem?.themePreference || 'dark',
+          notifyReplies: u.notifyReplies !== false,
+          notifyMentions: u.notifyMentions !== false,
+          showOnlineStatus: u.showOnlineStatus !== false,
+          createdAt: u.createdAt,
+        };
+      });
+    } catch (e) {
+      console.warn('Prisma getAllUsers error, falling back:', e);
+    }
+  }
+
+  // Merge any users persisted in tmp
+  const persisted = loadPersistedState();
+  if (persisted && Array.isArray(persisted.users)) {
+    for (const pu of persisted.users) {
+      if (!memoryState.users.some((m) => m.id === pu.id)) {
+        memoryState.users.push(pu);
+      }
+    }
   }
 
   return memoryState.users.map((u) => ({
@@ -544,57 +732,80 @@ export async function getUserProfileWithStats(userId: string) {
   let mem = memoryState.users.find((u) => u.id === userId);
   const usePrisma = await checkPrismaConnection();
   if (usePrisma) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        _count: {
-          select: { threads: true, posts: true },
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          _count: {
+            select: { threads: true, posts: true },
+          },
         },
-      },
-    });
-    if (!user) return null;
+      });
+      if (user) {
+        if (!mem) {
+          mem = {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+            passwordHash: user.passwordHash,
+            role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
+            avatar: user.avatar || '',
+            bio: user.bio || '',
+            reputation: user.reputation,
+            isBanned: user.isBanned,
+            website: user.website || '',
+            location: user.location || '',
+            github: user.github || '',
+            twitter: user.twitter || '',
+            themePreference: (user.themePreference as any) || 'dark',
+            notifyReplies: user.notifyReplies !== false,
+            notifyMentions: user.notifyMentions !== false,
+            showOnlineStatus: user.showOnlineStatus !== false,
+            createdAt: user.createdAt,
+          };
+          memoryState.users.push(mem);
+          persistState();
+        }
 
-    if (!mem) {
-      mem = {
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        passwordHash: user.passwordHash,
-        role: user.role as 'USER' | 'MODERATOR' | 'ADMIN',
-        avatar: user.avatar || '',
-        bio: user.bio || '',
-        reputation: user.reputation,
-        isBanned: user.isBanned,
-        createdAt: user.createdAt,
-      };
-      memoryState.users.push(mem);
-      persistState();
+        return {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          bio: user.bio,
+          reputation: user.reputation,
+          isBanned: user.isBanned,
+          website: user.website || mem?.website || '',
+          location: user.location || mem?.location || '',
+          github: user.github || mem?.github || '',
+          twitter: user.twitter || mem?.twitter || '',
+          themePreference: (user.themePreference as any) || mem?.themePreference || 'dark',
+          notifyReplies: user.notifyReplies !== false,
+          notifyMentions: user.notifyMentions !== false,
+          showOnlineStatus: user.showOnlineStatus !== false,
+          createdAt: user.createdAt,
+          threadCount: user._count.threads,
+          postCount: user._count.posts,
+        };
+      }
+    } catch (e) {
+      console.warn('Prisma getUserProfileWithStats error, falling back:', e);
     }
-
-    return {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      avatar: user.avatar,
-      bio: user.bio,
-      reputation: user.reputation,
-      isBanned: user.isBanned,
-      website: mem?.website || '',
-      location: mem?.location || '',
-      github: mem?.github || '',
-      twitter: mem?.twitter || '',
-      themePreference: mem?.themePreference || 'dark',
-      notifyReplies: mem?.notifyReplies !== false,
-      notifyMentions: mem?.notifyMentions !== false,
-      showOnlineStatus: mem?.showOnlineStatus !== false,
-      createdAt: user.createdAt,
-      threadCount: user._count.threads,
-      postCount: user._count.posts,
-    };
   }
 
-  const user = memoryState.users.find((u) => u.id === userId);
+  let user = memoryState.users.find((u) => u.id === userId);
+  if (!user) {
+    const persisted = loadPersistedState();
+    if (persisted && Array.isArray(persisted.users)) {
+      for (const pu of persisted.users) {
+        if (!memoryState.users.some((m) => m.id === pu.id)) {
+          memoryState.users.push(pu);
+        }
+      }
+      user = memoryState.users.find((u) => u.id === userId);
+    }
+  }
   if (!user) return null;
 
   const threadCount = memoryState.threads.filter((t) => t.authorId === userId).length;

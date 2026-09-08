@@ -49,6 +49,10 @@ export default function SignupPage() {
         return;
       }
 
+      if (data.token) localStorage.setItem('eyedea_session_token', data.token);
+      if (data.vaultToken) localStorage.setItem('eyedea_vault_token', data.vaultToken);
+      if (data.user) localStorage.setItem('eyedea_user_cache', JSON.stringify(data.user));
+
       window.dispatchEvent(new Event('auth-change'));
       window.location.href = '/';
     } catch (err: any) {

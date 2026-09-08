@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCurrentUser, hashPassword, verifyPassword, signToken, AUTH_COOKIE_NAME } from '@/lib/auth';
+import { getCurrentUser, hashPassword, verifyPassword, signToken, signVaultToken, AUTH_COOKIE_NAME, VAULT_COOKIE_NAME } from '@/lib/auth';
 import { getUserProfileWithStats, updateUserProfile, findUserById } from '@/lib/store';
 
 export async function GET() {
@@ -147,18 +147,35 @@ export async function PUT(req: Request) {
 
     const updatedUser = result.user;
 
-    // Issue updated auth token
+    // Issue updated auth token and vault token
     const token = signToken({
       id: updatedUser.id,
       username: updatedUser.username,
       email: updatedUser.email,
       role: updatedUser.role,
       avatar: updatedUser.avatar,
+      bio: updatedUser.bio,
       reputation: updatedUser.reputation,
+      website: updatedUser.website,
+      location: updatedUser.location,
+      github: updatedUser.github,
+      twitter: updatedUser.twitter,
+      themePreference: updatedUser.themePreference,
+      notifyReplies: updatedUser.notifyReplies,
+      notifyMentions: updatedUser.notifyMentions,
+      showOnlineStatus: updatedUser.showOnlineStatus,
+      createdAt: updatedUser.createdAt,
+    });
+
+    const vaultToken = signVaultToken({
+      ...updatedUser,
+      createdAt: updatedUser.createdAt instanceof Date ? updatedUser.createdAt.toISOString() : String(updatedUser.createdAt),
     });
 
     const response = NextResponse.json({
       success: true,
+      token,
+      vaultToken,
       user: {
         id: updatedUser.id,
         username: updatedUser.username,
@@ -186,12 +203,22 @@ export async function PUT(req: Request) {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: 60 * 60 * 24 * 30,
+    });
+
+    response.cookies.set({
+      name: VAULT_COOKIE_NAME,
+      value: vaultToken,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
     });
 
     return response;
   } catch (error: any) {
     console.error('Error updating profile:', error);
-    return NextResponse.json({ error: 'Internal server error updating profile' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal server error updating profile' }, { status: 500 });
   }
 }

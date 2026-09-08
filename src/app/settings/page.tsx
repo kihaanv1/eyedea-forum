@@ -371,7 +371,10 @@ export default function ProfileSettingsPage() {
       setSuccessMessage('Settings updated successfully!');
       if (data.user) {
         setProfile((prev) => (prev ? { ...prev, ...data.user } : data.user));
+        localStorage.setItem('eyedea_user_cache', JSON.stringify(data.user));
       }
+      if (data.token) localStorage.setItem('eyedea_session_token', data.token);
+      if (data.vaultToken) localStorage.setItem('eyedea_vault_token', data.vaultToken);
 
       // Reset password fields
       setCurrentPassword('');
