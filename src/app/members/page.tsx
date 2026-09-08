@@ -1,12 +1,14 @@
 import React from 'react';
 import Link from 'next/link';
 import { getAllUsers } from '@/lib/store';
+import { getCurrentUser } from '@/lib/auth';
 import { RoleBadge, ReputationBadge } from '@/components/Badge';
 import { Users, Award, Calendar, ArrowLeft, MapPin, Globe, Settings } from 'lucide-react';
 
 export const revalidate = 0;
 
 export default async function MembersPage() {
+  await getCurrentUser();
   const users = await getAllUsers();
   // Sort users by reputation descending
   const sorted = [...users].sort((a, b) => b.reputation - a.reputation);

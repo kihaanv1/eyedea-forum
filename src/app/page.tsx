@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { getForumHierarchy, getAnnouncements, getAdminStats } from '@/lib/store';
+import { getCurrentUser } from '@/lib/auth';
 import ForumCategoryCard from '@/components/ForumCategoryCard';
 import SidebarStats from '@/components/SidebarStats';
 import AnnouncementBanner from '@/components/AnnouncementBanner';
@@ -9,6 +10,7 @@ import { Sparkles, MessageSquare, ArrowRight, ShieldCheck } from 'lucide-react';
 export const revalidate = 0; // Fresh content
 
 export default async function HomePage() {
+  await getCurrentUser();
   const [categories, announcements, stats] = await Promise.all([
     getForumHierarchy(),
     getAnnouncements(),
