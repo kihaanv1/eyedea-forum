@@ -28,9 +28,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## 🔐 Owner Credentials
 
 ### 👑 Owner / Administrator Account
-- **Username**: `kihaan`
+- **Username**: *
 - **Email**: `kihaan@ideasphere.ph`
-- **Password**: `kianchoi093020`
+- **Password**: *
 - **Access**: Full Owner / Admin Panel (`/admin`), board creation, category management, role assignments, thread locking/pinning, and site-wide broadcasts.
 
 *(All previous test dummy users have been removed).*
